@@ -1,0 +1,95 @@
+use clap::Parser;
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
+
+use crate::client::BittimeClient;
+use crate::errors::BittimeError;
+use crate::output::OutputFormat;
+
+pub async fn run_shell(client: &BittimeClient, format: OutputFormat) -> Result<(), BittimeError> {
+    use colored::Colorize;
+
+    println!("{}", "╔══════════════════════════════════════════╗".cyan());
+    println!("{}", "║        Bittime Interactive Shell          ║".cyan());
+    println!("{}", "║  Type commands without 'bittime' prefix   ║".cyan());
+    println!("{}", "║  Type 'help' or 'exit' to quit            ║".cyan());
+    println!("{}", "╚══════════════════════════════════════════╝".cyan());
+    println!();
+
+    let mut rl = DefaultEditor::new().map_err(|e| BittimeError::Io(std::io::Error::other(e.to_string())))?;
+
+    loop {
+        let prompt = format!("{} ", "bittime>".green().bold());
+        match rl.readline(&prompt) {
+            Ok(line) => {
+                let line = line.trim();
+                if line.is_empty() { continue; }
+                let _ = rl.add_history_entry(line);
+
+                match line {
+                    "exit" | "quit" | "q" => {
+                        println!("{}", "Goodbye!".cyan());
+                        break;
+                    }
+                    "help" | "h" | "?" => {
+                        print_shell_help();
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                // Parse and execute as subcommand
+                let parts = match shlex::split(line) {
+                    Some(p) => p,
+                    None => { eprintln!("{} Invalid input", "Error:".red()); continue; }
+                };
+
+                // Build full args: ["bittime", ...parts]
+                let mut args = vec!["bittime".to_string()];
+                args.extend(parts);
+
+                // Try to parse and dispatch
+                match crate::Cli::try_parse_from(&args) {
+                    Ok(cli) => {
+                        if let Err(e) = crate::dispatch(cli, client, format).await {
+                            crate::output::print_error(format, &e);
+                        }
+                    }
+                    Err(e) => {
+                        // clap parse error — show it
+                        eprintln!("{}", e);
+                    }
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("{}", "^C — use 'exit' to quit".yellow());
+            }
+            Err(ReadlineError::Eof) => {
+                println!("{}", "Goodbye!".cyan());
+                break;
+            }
+            Err(e) => {
+                eprintln!("{} {}", "Readline error:".red(), e);
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn print_shell_help() {
+    use colored::Colorize;
+    println!("{}", "Available command groups:".bold());
+    println!("  {} — ping, server-time, ticker, orderbook, etc.", "market".cyan());
+    println!("  {} — info, balance, trades", "account".cyan());
+    println!("  {}   — buy, sell, cancel, open-orders, etc.", "trade".cyan());
+    println!("  {} — withdraw, deposit, otc-withdraw, etc.", "funding".cyan());
+    println!("  {}      — depth, orders, balances (WebSocket)", "ws".cyan());
+    println!("  {}    — set, show, test, reset credentials", "auth".cyan());
+    println!();
+    println!("  {}    — show this help", "help".yellow());
+    println!("  {}    — quit the shell", "exit".yellow());
+    println!();
+    println!("Example: {} {} {}", "market".cyan(), "ticker".white(), "USDTIDR".green());
+}
