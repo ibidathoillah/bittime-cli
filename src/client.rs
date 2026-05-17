@@ -4,8 +4,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 use crate::auth;
-use crate::config::Credentials;
+use crate::config::{Config, Credentials};
 use crate::errors::BittimeError;
+use tracing::debug;
 
 /// Token-bucket rate limiter for proactive 429 avoidance.
 #[derive(Debug)]
@@ -72,11 +73,16 @@ impl BittimeClient {
             .build()
             .expect("Failed to build HTTP client");
 
+        let offset = Config::load_time_offset();
+        if offset.is_some() {
+            debug!("Loaded cached time offset from disk");
+        }
+
         Self {
             http,
             host: host.trim_end_matches('/').to_string(),
             credentials,
-            time_offset: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            time_offset: std::sync::Arc::new(tokio::sync::RwLock::new(offset)),
             rate_limiter: std::sync::Arc::new(RateLimiter::new(10, 10)),
         }
     }
@@ -213,6 +219,13 @@ impl BittimeClient {
 
         let mut lock = self.time_offset.write().await;
         *lock = Some(offset);
+
+        if let Err(e) = Config::save_time_offset(offset) {
+            debug!("Failed to save time offset to disk: {}", e);
+        } else {
+            debug!("Saved synced time offset to disk");
+        }
+
         Ok(offset)
     }
 

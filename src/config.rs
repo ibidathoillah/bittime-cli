@@ -88,6 +88,38 @@ impl Config {
         Ok(Self::config_dir()?.join("paper_state.json"))
     }
 
+    /// Returns the server time offset file path: `~/.config/bittime/time_offset`
+    pub fn time_offset_path() -> Result<PathBuf, BittimeError> {
+        Ok(Self::config_dir()?.join("time_offset"))
+    }
+
+    /// Load cached server time offset from disk.
+    pub fn load_time_offset() -> Option<i64> {
+        let path = Self::time_offset_path().ok()?;
+        if !path.exists() {
+            return None;
+        }
+        fs::read_to_string(path)
+            .ok()?
+            .trim()
+            .parse::<i64>()
+            .ok()
+    }
+
+    /// Save server time offset to disk.
+    pub fn save_time_offset(offset: i64) -> Result<(), BittimeError> {
+        let path = Self::time_offset_path()?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                BittimeError::Config(format!("Failed to create directory: {}", e))
+            })?;
+        }
+        fs::write(&path, offset.to_string()).map_err(|e| {
+            BittimeError::Config(format!("Failed to write time offset: {}", e))
+        })?;
+        Ok(())
+    }
+
     /// Load config from disk. Returns default config if file doesn't exist.
     pub fn load() -> Result<Self, BittimeError> {
         let path = Self::config_path()?;

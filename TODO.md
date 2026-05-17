@@ -1,7 +1,7 @@
 # Bittime CLI — TODO List
 
 ## 🚀 High Priority (Reliability & Performance)
-- [ ] **Time Offset Caching**: Cache server time offset on first request to avoid extra RTT on every signed call.
+- [x] **Time Offset Caching**: Cache server time offset on first request to avoid extra RTT on every signed call.
 - [ ] **WS Reconnection**: Implement automatic exponential backoff reconnection for WebSocket streams.
 - [ ] **History Persistence**: Save REPL shell history to `~/.config/bittime/history`.
 - [x] Implement proactive rate limiting (token bucket)
