@@ -14,6 +14,7 @@ Unofficial Rust CLI for the Bittime exchange. Use it to inspect markets, manage 
 - Spot trading: market and limit buy/sell, query order, cancel order, open orders.
 - Funding and OTC: crypto deposit/withdraw history, OTC VA code, OTC IDR deposit and withdrawal history.
 - Real-time streams: market depth, private order events, private balance events, raw user channels.
+- Paper trading: local simulated balances and orders stored in `~/.config/bittime/paper_state.json`.
 - Automation-friendly output: human tables by default, JSON envelopes with `-o json`.
 - Credential resolution: CLI flags, environment variables, or `~/.config/bittime/config.toml`.
 - Agent support: MCP server mode for tool discovery and JSON-RPC execution.
@@ -60,9 +61,9 @@ Market data does not require credentials:
 
 ```bash
 bittime ping
-bittime ticker USDTIDR
-bittime orderbook USDTIDR --count 10
-bittime -o json book-ticker USDTIDR
+bittime ticker usdt/idr
+bittime orderbook usdt/idr --count 10
+bittime -o json book-ticker usdt/idr
 ```
 
 Configure private API credentials:
@@ -106,14 +107,14 @@ Options:
 bittime ping
 bittime server-time
 bittime exchange-info
-bittime ticker USDTIDR
+bittime ticker usdt/idr
 bittime ticker-all
-bittime price USDTIDR
-bittime book-ticker USDTIDR
-bittime orderbook USDTIDR --count 10
-bittime trades USDTIDR --count 5
-bittime agg-trades USDTIDR --count 5
-bittime historical-trades USDTIDR --count 5
+bittime price usdt/idr
+bittime book-ticker usdt/idr
+bittime orderbook usdt/idr --count 10
+bittime trades usdt/idr --count 5
+bittime agg-trades usdt/idr --count 5
+bittime historical-trades usdt/idr --count 5
 ```
 
 ### Account
@@ -123,22 +124,22 @@ bittime account-info
 bittime balance
 bittime account-info-v2
 bittime assets usdt
-bittime trades-history USDTIDR
-bittime trades-history-v2 USDTIDR --since 123
-bittime trades-legacy USDTIDR
+bittime trades-history usdt/idr
+bittime trades-history-v2 usdt/idr --since 123
+bittime trades-legacy usdt/idr
 ```
 
 ### Trading
 
 ```bash
-bittime order buy USDTIDR -t LIMIT -p 16000 --volume 1
-bittime order sell USDTIDR -t MARKET --volume 1
-bittime order cancel USDTIDR --order-id 123456
-bittime order query USDTIDR --order-id 123456
-bittime order open-orders USDTIDR
-bittime order all-orders USDTIDR
-bittime order pending-orders USDTIDR
-bittime order book-orders USDTIDR --count 5
+bittime order buy usdt/idr -t LIMIT -p 16000 --volume 1
+bittime order sell usdt/idr -t MARKET --volume 1
+bittime order cancel usdt/idr --order-id 123456
+bittime order query usdt/idr --order-id 123456
+bittime order open-orders usdt/idr
+bittime order all-orders usdt/idr
+bittime order pending-orders usdt/idr
+bittime order book-orders usdt/idr --count 5
 ```
 
 Notes:
@@ -157,13 +158,33 @@ bittime deposit otc-status --count 10
 bittime withdrawal otc-status --count 10
 ```
 
+### Paper Trading
+
+```bash
+bittime paper init --pair usdt/idr --quote-balance 100000000 --base-balance 1
+bittime paper balance
+bittime paper buy usdt/idr --price 16000 --volume 1
+bittime paper sell usdt/idr --price 17000 --volume 1
+bittime paper fill 1
+bittime paper orders
+bittime paper orders --all
+bittime paper cancel 2
+bittime paper cancel-all --pair usdt/idr
+bittime paper topup IDR 5000000
+bittime paper history
+bittime paper status
+bittime paper reset
+```
+
+Use `--fill` on `paper buy` or `paper sell` to immediately settle an order at the supplied price.
+
 ### WebSocket Streaming
 
 Market depth:
 
 ```bash
-bittime ws depth usdtidr
-bittime ws depth usdtidr --limit 1 --seconds 15
+bittime ws depth usdt/idr
+bittime ws depth usdt/idr --limit 1 --seconds 15
 ```
 
 Private streams:
@@ -204,7 +225,7 @@ The repository includes live API smoke tests:
 Environment knobs:
 
 ```bash
-BITTIME_TEST_PAIR=USDTIDR
+BITTIME_TEST_PAIR=usdt/idr
 BITTIME_TEST_COIN=usdt
 BITTIME_BIN=./target/debug/bittime
 ```

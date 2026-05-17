@@ -19,6 +19,7 @@ set -euo pipefail
 BINARY="${BITTIME_BIN:-./target/debug/bittime}"
 PAIR="${BITTIME_TEST_PAIR:-USDTIDR}"
 PAIR_LOWER=$(echo "$PAIR" | tr '[:upper:]' '[:lower:]')
+PAIR_FLEX="${BITTIME_TEST_PAIR_FLEX:-usdt/idr}"
 TEST_COIN="${BITTIME_TEST_COIN:-usdt}"
 
 # Counters
@@ -179,17 +180,17 @@ run_test_json "market ticker $PAIR (json)" \
 run_test "market ticker-all (json)" \
     $BINARY -o json ticker-all
 
-run_test_json "market price $PAIR" \
-    $BINARY -o json price "$PAIR"
+run_test_json "market price $PAIR_FLEX" \
+    $BINARY -o json price "$PAIR_FLEX"
 
-run_test_json "market book-ticker $PAIR" \
-    $BINARY -o json book-ticker "$PAIR"
+run_test_json "market book-ticker $PAIR_FLEX" \
+    $BINARY -o json book-ticker "$PAIR_FLEX"
 
 run_test "market orderbook $PAIR (table)" \
     $BINARY orderbook "$PAIR" --count 5
 
-run_test_json "market orderbook $PAIR (json)" \
-    $BINARY -o json orderbook "$PAIR" --count 5
+run_test_json "market orderbook $PAIR_FLEX (json)" \
+    $BINARY -o json orderbook "$PAIR_FLEX" --count 5
 
 run_test_json "market trades $PAIR (limit=5)" \
     $BINARY -o json trades "$PAIR" --count 5
@@ -286,11 +287,11 @@ if $HAS_CREDS; then
     run_test_json "account trades $PAIR" \
         $BINARY -o json trades-history "$PAIR"
 
-    run_test_json "account trades-v2 $PAIR" \
-        $BINARY -o json trades-history-v2 "$PAIR"
+    run_test_json "account trades-v2 $PAIR_FLEX" \
+        $BINARY -o json trades-history-v2 "$PAIR_FLEX"
 
-    run_test "trade open-orders $PAIR" \
-        $BINARY -o json order open-orders "$PAIR"
+    run_test "trade open-orders $PAIR_FLEX" \
+        $BINARY -o json order open-orders "$PAIR_FLEX"
 
     run_test "trade all-orders $PAIR" \
         $BINARY -o json order all-orders "$PAIR"
@@ -347,8 +348,8 @@ if $RUN_WS; then
 
 log_header "WEBSOCKET — Market & User Streams"
 
-run_test "ws depth $PAIR_LOWER" \
-    $BINARY -o json ws depth "$PAIR_LOWER" --limit 1 --seconds 15
+run_test "ws depth $PAIR_FLEX" \
+    $BINARY -o json ws depth "$PAIR_FLEX" --limit 1 --seconds 15
 
 AUTH_TEST_OUTPUT=""
 AUTH_TEST_EXIT=0

@@ -83,6 +83,11 @@ impl Config {
         Ok(Self::config_dir()?.join("history"))
     }
 
+    /// Returns the paper trading state file path: `~/.config/bittime/paper_state.json`
+    pub fn paper_state_path() -> Result<PathBuf, BittimeError> {
+        Ok(Self::config_dir()?.join("paper_state.json"))
+    }
+
     /// Load config from disk. Returns default config if file doesn't exist.
     pub fn load() -> Result<Self, BittimeError> {
         let path = Self::config_path()?;

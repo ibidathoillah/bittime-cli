@@ -15,6 +15,32 @@ use crate::commands::{
 use crate::errors::BittimeError;
 use crate::output::{CommandOutput, OutputFormat};
 
+pub(crate) fn normalize_pair(pair: &str) -> String {
+    pair.replace(['_', '-', '/'], "").to_uppercase()
+}
+
+pub(crate) fn normalize_pair_ws(pair: &str) -> String {
+    normalize_pair(pair).to_lowercase()
+}
+
+#[cfg(test)]
+mod pair_tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_pair_for_api() {
+        assert_eq!(normalize_pair("BTCUSDT"), "BTCUSDT");
+        assert_eq!(normalize_pair("btc_usdt"), "BTCUSDT");
+        assert_eq!(normalize_pair("btc-usdt"), "BTCUSDT");
+        assert_eq!(normalize_pair("btc/usdt"), "BTCUSDT");
+    }
+
+    #[test]
+    fn normalizes_pair_for_websocket() {
+        assert_eq!(normalize_pair_ws("USDT_IDR"), "usdtidr");
+    }
+}
+
 /// Global application context.
 #[derive(Clone)]
 pub struct AppContext {
@@ -297,37 +323,107 @@ pub async fn dispatch_non_shell(
         Command::Ping => market::MarketCommand::Ping.execute(ctx).await,
         Command::ServerTime => market::MarketCommand::ServerTime.execute(ctx).await,
         Command::ExchangeInfo => market::MarketCommand::ExchangeInfo.execute(ctx).await,
-        Command::Ticker { pair } => market::MarketCommand::Ticker { symbol: pair }.execute(ctx).await,
+        Command::Ticker { pair } => {
+            market::MarketCommand::Ticker {
+                symbol: normalize_pair(&pair),
+            }
+                .execute(ctx)
+                .await
+        }
         Command::TickerAll => market::MarketCommand::TickerAll.execute(ctx).await,
-        Command::Price { pair } => market::MarketCommand::Price { symbol: pair }.execute(ctx).await,
-        Command::BookTicker { pair } => market::MarketCommand::BookTicker { symbol: pair }.execute(ctx).await,
-        Command::Orderbook { pair, count } => market::MarketCommand::Orderbook { symbol: pair, limit: count }.execute(ctx).await,
-        Command::Trades { pair, count } => market::MarketCommand::Trades { symbol: pair, limit: count }.execute(ctx).await,
+        Command::Price { pair } => {
+            market::MarketCommand::Price {
+                symbol: normalize_pair(&pair),
+            }
+                .execute(ctx)
+                .await
+        }
+        Command::BookTicker { pair } => {
+            market::MarketCommand::BookTicker {
+                symbol: normalize_pair(&pair),
+            }
+                .execute(ctx)
+                .await
+        }
+        Command::Orderbook { pair, count } => {
+            market::MarketCommand::Orderbook {
+                symbol: normalize_pair(&pair),
+                limit: count,
+            }
+            .execute(ctx)
+            .await
+        }
+        Command::Trades { pair, count } => {
+            market::MarketCommand::Trades {
+                symbol: normalize_pair(&pair),
+                limit: count,
+            }
+            .execute(ctx)
+            .await
+        }
         Command::HistoricalTrades { pair, count, since } => {
             market::MarketCommand::HistoricalTrades {
-                symbol: pair,
+                symbol: normalize_pair(&pair),
                 limit: count,
                 from_id: since,
             }
             .execute(ctx)
             .await
         }
-        Command::AggTrades { pair, count } => market::MarketCommand::AggTrades { symbol: pair, limit: count }.execute(ctx).await,
+        Command::AggTrades { pair, count } => {
+            market::MarketCommand::AggTrades {
+                symbol: normalize_pair(&pair),
+                limit: count,
+            }
+            .execute(ctx)
+            .await
+        }
 
         // === Account & Balance Commands ===
         Command::AccountInfo => account::AccountCommand::Info.execute(ctx).await,
         Command::Balance => account::AccountCommand::Balance.execute(ctx).await,
         Command::AccountInfoV2 => account::AccountCommand::InfoV2.execute(ctx).await,
-        Command::Assets { asset } => account::AccountCommand::Assets { coin: asset }.execute(ctx).await,
-        Command::TradesHistory { pair } => account::AccountCommand::Trades { symbol: pair }.execute(ctx).await,
-        Command::TradesHistoryV2 { pair, since } => account::AccountCommand::TradesV2 { symbol: pair, from_id: since }.execute(ctx).await,
-        Command::TradesLegacy { pair } => account::AccountCommand::TradeHistory { symbol: pair }.execute(ctx).await,
+        Command::Assets { asset } => {
+            account::AccountCommand::Assets { coin: asset }
+                .execute(ctx)
+                .await
+        }
+        Command::TradesHistory { pair } => {
+            account::AccountCommand::Trades {
+                symbol: normalize_pair(&pair),
+            }
+                .execute(ctx)
+                .await
+        }
+        Command::TradesHistoryV2 { pair, since } => {
+            account::AccountCommand::TradesV2 {
+                symbol: normalize_pair(&pair),
+                from_id: since,
+            }
+            .execute(ctx)
+            .await
+        }
+        Command::TradesLegacy { pair } => {
+            account::AccountCommand::TradeHistory {
+                symbol: normalize_pair(&pair),
+            }
+                .execute(ctx)
+                .await
+        }
 
         // === Trading Operations ===
         Command::Order(cmd) => cmd.execute(ctx).await,
 
         // === Funding / Withdrawal Operations ===
-        Command::Withdraw { asset, volume, address, network, address_mark, addr_type, tag } => {
+        Command::Withdraw {
+            asset,
+            volume,
+            address,
+            network,
+            address_mark,
+            addr_type,
+            tag,
+        } => {
             funding::FundingCommand::Withdraw {
                 coin: asset,
                 amount: volume,
@@ -340,7 +436,13 @@ pub async fn dispatch_non_shell(
             .execute(ctx)
             .await
         }
-        Command::OtcWithdraw { bank_name, account_name, bank_number, currency, volume } => {
+        Command::OtcWithdraw {
+            bank_name,
+            account_name,
+            bank_number,
+            currency,
+            volume,
+        } => {
             funding::FundingCommand::OtcWithdraw {
                 bank_name,
                 account_name,
@@ -353,26 +455,32 @@ pub async fn dispatch_non_shell(
         }
         Command::Deposit(sub) => {
             let funding_cmd = match sub {
-                DepositSubcommand::Status { asset } => funding::FundingCommand::DepositHistory { coin: asset },
-                DepositSubcommand::OtcStatus { deposit_order_id, count } => {
-                    funding::FundingCommand::OtcDepositHistory {
-                        deposit_order_id,
-                        limit: count,
-                    }
+                DepositSubcommand::Status { asset } => {
+                    funding::FundingCommand::DepositHistory { coin: asset }
                 }
+                DepositSubcommand::OtcStatus {
+                    deposit_order_id,
+                    count,
+                } => funding::FundingCommand::OtcDepositHistory {
+                    deposit_order_id,
+                    limit: count,
+                },
                 DepositSubcommand::Va { bank_id } => funding::FundingCommand::OtcVaCode { bank_id },
             };
             funding_cmd.execute(ctx).await
         }
         Command::Withdrawal(sub) => {
             let funding_cmd = match sub {
-                WithdrawalSubcommand::Status { asset } => funding::FundingCommand::WithdrawHistory { coin: asset },
-                WithdrawalSubcommand::OtcStatus { withdraw_order_id, count } => {
-                    funding::FundingCommand::OtcWithdrawHistory {
-                        withdraw_order_id,
-                        limit: count,
-                    }
+                WithdrawalSubcommand::Status { asset } => {
+                    funding::FundingCommand::WithdrawHistory { coin: asset }
                 }
+                WithdrawalSubcommand::OtcStatus {
+                    withdraw_order_id,
+                    count,
+                } => funding::FundingCommand::OtcWithdrawHistory {
+                    withdraw_order_id,
+                    limit: count,
+                },
             };
             funding_cmd.execute(ctx).await
         }

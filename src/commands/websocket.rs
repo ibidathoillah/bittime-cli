@@ -9,14 +9,14 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use crate::config::{DEFAULT_WS_MARKET_HOST, DEFAULT_WS_USER_HOST};
 use crate::errors::BittimeError;
 use crate::output::{CommandOutput, OutputFormat};
-use crate::AppContext;
+use crate::{normalize_pair_ws, AppContext};
 
 #[derive(Debug, Subcommand)]
 pub enum WebSocketCommand {
     /// Stream order book depth updates
     Depth {
-        /// Trading pair (lowercase, e.g., usdtidr, btcusdt)
-        symbol: String,
+        /// Trading pair (e.g., USDTIDR, usdt_idr, or usdt/idr)
+        pair: String,
 
         /// Stop after receiving this many data messages
         #[arg(short, long)]
@@ -66,11 +66,11 @@ impl WebSocketCommand {
     pub async fn execute(&self, ctx: &AppContext) -> Result<CommandOutput, BittimeError> {
         match self {
             Self::Depth {
-                symbol,
+                pair,
                 limit,
                 seconds,
             } => {
-                let sym = symbol.to_lowercase();
+                let sym = normalize_pair_ws(pair);
                 stream_market_depth(&sym, ctx.format, StreamBounds::new(*limit, *seconds)).await?;
             }
             Self::Orders { limit, seconds } => {
