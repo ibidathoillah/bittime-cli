@@ -1,8 +1,8 @@
 use clap::Subcommand;
 
-use crate::client::BittimeClient;
 use crate::errors::BittimeError;
-use crate::output::{self, OutputFormat};
+use crate::output::CommandOutput;
+use crate::AppContext;
 
 #[derive(Debug, Subcommand)]
 pub enum TradeCommand {
@@ -90,13 +90,13 @@ pub enum TradeCommand {
         order_id: Option<String>,
     },
 
-    /// List pending orders
+    /// List pending orders (alias for open orders on Bittime)
     PendingOrders {
         /// Trading pair symbol
         symbol: String,
     },
 
-    /// List book orders
+    /// Show public order book depth for a symbol
     BookOrders {
         /// Trading pair symbol
         symbol: String,
@@ -114,8 +114,10 @@ pub enum TradeCommand {
 }
 
 impl TradeCommand {
-    pub async fn execute(&self, client: &BittimeClient, format: OutputFormat) -> Result<(), BittimeError> {
-        match self {
+    pub async fn execute(&self, ctx: &AppContext) -> Result<CommandOutput, BittimeError> {
+        let client = &ctx.client;
+
+        let output = match self {
             Self::Buy {
                 symbol,
                 r#type,
@@ -123,8 +125,16 @@ impl TradeCommand {
                 quantity,
                 client_order_id,
             } => {
-                self.place_order(client, format, symbol, "BUY", r#type, price.as_deref(), quantity, client_order_id.as_deref())
-                    .await?;
+                self.place_order(
+                    ctx,
+                    symbol,
+                    "BUY",
+                    r#type,
+                    price.as_deref(),
+                    quantity,
+                    client_order_id.as_deref(),
+                )
+                .await?
             }
 
             Self::Sell {
@@ -134,8 +144,16 @@ impl TradeCommand {
                 quantity,
                 client_order_id,
             } => {
-                self.place_order(client, format, symbol, "SELL", r#type, price.as_deref(), quantity, client_order_id.as_deref())
-                    .await?;
+                self.place_order(
+                    ctx,
+                    symbol,
+                    "SELL",
+                    r#type,
+                    price.as_deref(),
+                    quantity,
+                    client_order_id.as_deref(),
+                )
+                .await?
             }
 
             Self::Cancel { symbol, order_id } => {
@@ -146,8 +164,8 @@ impl TradeCommand {
                         &[("symbol", sym.as_str()), ("orderId", order_id.as_str())],
                     )
                     .await?;
-                output::print_success(format, &format!("Order {} cancelled", order_id));
-                output::render(format, "Cancel Result", &result);
+                CommandOutput::new(result, "Cancel Result")
+                    .with_addendum(format!("Order {} cancelled", order_id))
             }
 
             Self::Query { symbol, order_id } => {
@@ -158,7 +176,7 @@ impl TradeCommand {
                         &[("symbol", sym.as_str()), ("orderId", order_id.as_str())],
                     )
                     .await?;
-                output::render(format, &format!("Order {} — {}", order_id, sym), &result);
+                CommandOutput::new(result, format!("Order {} — {}", order_id, sym))
             }
 
             Self::OpenOrders { symbol, limit } => {
@@ -170,7 +188,7 @@ impl TradeCommand {
                         &[("symbol", sym.as_str()), ("limit", lim.as_str())],
                     )
                     .await?;
-                output::render(format, &format!("Open Orders — {}", sym), &result);
+                CommandOutput::new(result, format!("Open Orders — {}", sym))
             }
 
             Self::AllOrders { symbol, order_id } => {
@@ -182,27 +200,27 @@ impl TradeCommand {
                         &[("symbol", sym.as_str()), ("orderId", oid)],
                     )
                     .await?;
-                output::render(format, &format!("All Orders — {}", sym), &result);
+                CommandOutput::new(result, format!("All Orders — {}", sym))
             }
 
             Self::PendingOrders { symbol } => {
                 let sym = symbol.to_uppercase();
                 let result = client
-                    .get_signed("/api/v1/pendingOrders", &[("symbol", sym.as_str())])
+                    .get_signed("/api/v1/openOrders", &[("symbol", sym.as_str())])
                     .await?;
-                output::render(format, &format!("Pending Orders — {}", sym), &result);
+                CommandOutput::new(result, format!("Pending Orders — {}", sym))
             }
 
             Self::BookOrders { symbol, limit } => {
                 let sym = symbol.to_uppercase();
                 let lim = limit.to_string();
                 let result = client
-                    .get_signed(
-                        "/api/v1/bookOrders",
+                    .get_public(
+                        "/api/v1/depth",
                         &[("symbol", sym.as_str()), ("limit", lim.as_str())],
                     )
                     .await?;
-                output::render(format, &format!("Book Orders — {}", sym), &result);
+                CommandOutput::new(result, format!("Order Book — {}", sym))
             }
 
             Self::Convert { symbol } => {
@@ -210,31 +228,28 @@ impl TradeCommand {
                 let result = client
                     .post_signed("/api/convert/trades", &[("symbol", sym.as_str())])
                     .await?;
-                output::render(format, &format!("Convert — {}", sym), &result);
+                CommandOutput::new(result, format!("Convert — {}", sym))
             }
-        }
+        };
 
-        Ok(())
+        Ok(output.with_format(ctx.format))
     }
 
     async fn place_order(
         &self,
-        client: &BittimeClient,
-        format: OutputFormat,
+        ctx: &AppContext,
         symbol: &str,
         side: &str,
         order_type: &str,
         price: Option<&str>,
         quantity: &str,
         client_order_id: Option<&str>,
-    ) -> Result<(), BittimeError> {
+    ) -> Result<CommandOutput, BittimeError> {
         let sym = symbol.to_uppercase();
         let otype = order_type.to_uppercase();
         let coid = client_order_id
             .map(|s| s.to_string())
-            .unwrap_or_else(|| {
-                chrono::Utc::now().timestamp().to_string()
-            });
+            .unwrap_or_else(|| chrono::Utc::now().timestamp().to_string());
 
         let price_str = price.unwrap_or("0");
 
@@ -247,23 +262,16 @@ impl TradeCommand {
             ("newClientOrderId", coid.as_str()),
         ];
 
-        let result = client.post_signed("/api/v1/order", &params).await?;
+        let result = ctx.client.post_signed("/api/v1/order", &params).await?;
 
+        let mut output = CommandOutput::new(result.clone(), "Order Result");
         if let Some(order_id) = result.get("orderId") {
-            output::print_success(
-                format,
-                &format!(
-                    "{} {} {} @ {} — Order ID: {}",
-                    side,
-                    quantity,
-                    sym,
-                    price_str,
-                    order_id
-                ),
-            );
+            output = output.with_addendum(format!(
+                "{} {} {} @ {} — Order ID: {}",
+                side, quantity, sym, price_str, order_id
+            ));
         }
-        output::render(format, "Order Result", &result);
 
-        Ok(())
+        Ok(output.with_format(ctx.format))
     }
 }

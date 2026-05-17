@@ -30,6 +30,9 @@ pub enum BittimeError {
 
     #[error("WebSocket error: {0}")]
     WebSocket(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl BittimeError {
@@ -45,6 +48,7 @@ impl BittimeError {
             BittimeError::Io(_) => "io",
             BittimeError::Parse(_) => "parse",
             BittimeError::WebSocket(_) => "websocket",
+            BittimeError::Internal(_) => "internal",
         }
     }
 
@@ -96,9 +100,13 @@ impl From<anyhow::Error> for BittimeError {
 
 /// Display for user-facing error output (non-JSON mode).
 impl BittimeError {
-    pub fn print_pretty(&self) {
+    pub fn to_pretty_string(&self) -> String {
         use colored::Colorize;
-        eprintln!("{} {}", "Error:".red().bold(), self);
+        format!("{} {}", "Error:".red().bold(), self)
+    }
+
+    pub fn print_pretty(&self) {
+        eprintln!("{}", self.to_pretty_string());
     }
 }
 
@@ -122,6 +130,16 @@ mod tests {
         let rate_err = BittimeError::RateLimit("429".to_string());
         assert_eq!(rate_err.category(), "rate_limit");
         assert!(rate_err.retryable());
+
+        assert_eq!(BittimeError::Auth("".into()).category(), "auth");
+        assert_eq!(BittimeError::Config("".into()).category(), "config");
+        assert_eq!(
+            BittimeError::Io(std::io::Error::new(std::io::ErrorKind::Other, "")).category(),
+            "io"
+        );
+        assert_eq!(BittimeError::Parse("".into()).category(), "parse");
+        assert_eq!(BittimeError::WebSocket("".into()).category(), "websocket");
+        assert_eq!(BittimeError::Internal("".into()).category(), "internal");
     }
 
     #[test]
@@ -131,5 +149,36 @@ mod tests {
         assert_eq!(envelope["error"], true);
         assert_eq!(envelope["error_type"], "auth");
         assert_eq!(envelope["retryable"], false);
+    }
+
+    #[test]
+    fn test_pretty_string() {
+        let err = BittimeError::Auth("key missing".into());
+        let pretty = err.to_pretty_string();
+        assert!(pretty.contains("Error:"));
+        assert!(pretty.contains("key missing"));
+
+        assert!(BittimeError::Network("timeout".into())
+            .to_pretty_string()
+            .contains("Error:"));
+        assert!(BittimeError::RateLimit("429".into())
+            .to_pretty_string()
+            .contains("Error:"));
+        assert!(BittimeError::Api {
+            code: 1,
+            message: "err".into()
+        }
+        .to_pretty_string()
+        .contains("Error:"));
+    }
+
+    #[test]
+    fn test_from_conversions() {
+        let any_err = anyhow::anyhow!("test anyhow");
+        let b_err: BittimeError = any_err.into();
+        assert!(matches!(b_err, BittimeError::Api { .. }));
+
+        // We can't easily construct reqwest::Error or serde_json::Error for unit tests without triggering them
+        // but we can test the trait implementation exists and works if we had them.
     }
 }

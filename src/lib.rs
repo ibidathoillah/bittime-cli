@@ -3,14 +3,25 @@ pub mod client;
 pub mod commands;
 pub mod config;
 pub mod errors;
+pub mod mcp;
 pub mod output;
 
 use clap::{Parser, Subcommand};
 
 use crate::client::BittimeClient;
-use crate::commands::{account, auth_cmd, funding, market, shell, trade, ws};
+use crate::commands::{
+    account, auth as auth_cmds, funding, market, paper, trade, utility, websocket,
+};
 use crate::errors::BittimeError;
-use crate::output::OutputFormat;
+use crate::output::{CommandOutput, OutputFormat};
+
+/// Global application context.
+#[derive(Clone)]
+pub struct AppContext {
+    pub client: BittimeClient,
+    pub format: OutputFormat,
+    pub verbose: bool,
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -24,7 +35,7 @@ use crate::output::OutputFormat;
 pub struct Cli {
     /// Output format: table or json
     #[arg(short, long, default_value = "table", global = true)]
-    pub output: String,
+    pub output: OutputFormat,
 
     /// API key (overrides config and env var)
     #[arg(long, global = true)]
@@ -66,24 +77,56 @@ pub enum Command {
 
     /// WebSocket real-time data streams
     #[command(subcommand)]
-    Ws(ws::WsCommand),
+    Ws(websocket::WebSocketCommand),
+
+    /// Paper trading (simulated)
+    #[command(subcommand)]
+    Paper(paper::PaperCommand),
 
     /// API credential management
     #[command(subcommand)]
-    Auth(auth_cmd::AuthCommand),
+    Auth(auth_cmds::AuthCommand),
 
     /// Interactive shell (REPL)
     Shell,
+
+    /// Run as an MCP (Model Context Protocol) server
+    Mcp {
+        /// Allow dangerous commands (trade, funding)
+        #[arg(long)]
+        allow_dangerous: bool,
+    },
 }
 
-pub async fn dispatch(cli: Cli, client: &BittimeClient, format: OutputFormat) -> Result<(), BittimeError> {
-    match cli.command {
-        Command::Market(cmd) => cmd.execute(client, format).await,
-        Command::Account(cmd) => cmd.execute(client, format).await,
-        Command::Trade(cmd) => cmd.execute(client, format).await,
-        Command::Funding(cmd) => cmd.execute(client, format).await,
-        Command::Ws(cmd) => cmd.execute(client, format).await,
-        Command::Auth(cmd) => cmd.execute(client, format).await,
-        Command::Shell => Box::pin(shell::run_shell(client, format)).await,
+/// Dispatch all non-shell commands to their executors.
+pub async fn dispatch_non_shell(
+    ctx: &AppContext,
+    command: Command,
+) -> Result<CommandOutput, BittimeError> {
+    match command {
+        Command::Market(cmd) => cmd.execute(ctx).await,
+        Command::Account(cmd) => cmd.execute(ctx).await,
+        Command::Trade(cmd) => cmd.execute(ctx).await,
+        Command::Funding(cmd) => cmd.execute(ctx).await,
+        Command::Ws(cmd) => cmd.execute(ctx).await,
+        Command::Paper(cmd) => cmd.execute(ctx).await,
+        Command::Auth(cmd) => cmd.execute(ctx).await,
+        Command::Shell => Err(BittimeError::Config(
+            "Shell command is not supported in this context".to_string(),
+        )),
+        Command::Mcp { .. } => Err(BittimeError::Config(
+            "MCP server must be started from the main entry point".to_string(),
+        )),
+    }
+}
+
+/// Dispatch the parsed command to its executor.
+pub async fn dispatch(ctx: &AppContext, command: Command) -> Result<CommandOutput, BittimeError> {
+    match command {
+        Command::Shell => {
+            utility::run_shell(ctx).await?;
+            Ok(CommandOutput::new(serde_json::json!({}), "Shell").with_format(ctx.format))
+        }
+        other => dispatch_non_shell(ctx, other).await,
     }
 }

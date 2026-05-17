@@ -1,8 +1,8 @@
 use clap::Subcommand;
 
-use crate::client::BittimeClient;
 use crate::errors::BittimeError;
-use crate::output::{self, OutputFormat};
+use crate::output::CommandOutput;
+use crate::AppContext;
 
 #[derive(Debug, Subcommand)]
 pub enum MarketCommand {
@@ -82,30 +82,29 @@ pub enum MarketCommand {
 }
 
 impl MarketCommand {
-    pub async fn execute(&self, client: &BittimeClient, format: OutputFormat) -> Result<(), BittimeError> {
-        match self {
+    pub async fn execute(&self, ctx: &AppContext) -> Result<CommandOutput, BittimeError> {
+        let client = &ctx.client;
+
+        let output = match self {
             Self::Ping => {
                 let _result = client.get_public("/api/v1/ping", &[]).await?;
-                output::print_success(format, "Bittime API is reachable");
+                CommandOutput::new(serde_json::json!({ "status": "ok" }), "Ping")
+                    .with_addendum("Bittime API is reachable")
             }
 
             Self::ServerTime => {
                 let result = client.get_public("/api/v1/time", &[]).await?;
-                if format == OutputFormat::Json {
-                    output::render(format, "Server Time", &result);
-                } else {
-                    let ts = result["serverTime"].as_u64().unwrap_or(0);
-                    let dt = chrono::DateTime::from_timestamp_millis(ts as i64)
-                        .map(|d| d.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-                        .unwrap_or_else(|| ts.to_string());
-                    use colored::Colorize;
-                    println!("{} {} ({})", "Server Time:".cyan().bold(), dt, ts);
-                }
+                let ts = result["serverTime"].as_u64().unwrap_or(0);
+                let dt = chrono::DateTime::from_timestamp_millis(ts as i64)
+                    .map(|d| d.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                    .unwrap_or_else(|| ts.to_string());
+
+                CommandOutput::new(result, "Server Time").with_addendum(format!("{} ({})", dt, ts))
             }
 
             Self::ExchangeInfo => {
                 let result = client.get_public("/api/v1/exchangeInfo", &[]).await?;
-                output::render(format, "Exchange Info", &result);
+                CommandOutput::new(result, "Exchange Info")
             }
 
             Self::Ticker { symbol } => {
@@ -113,12 +112,12 @@ impl MarketCommand {
                 let result = client
                     .get_public("/api/v1/ticker/24hr", &[("symbol", &sym)])
                     .await?;
-                output::render(format, &format!("24h Ticker — {}", sym), &result);
+                CommandOutput::new(result, format!("24h Ticker — {}", sym))
             }
 
             Self::TickerAll => {
                 let result = client.get_public("/api/v1/ticker/24hr", &[]).await?;
-                output::render(format, "All Tickers (24h)", &result);
+                CommandOutput::new(result, "All Tickers (24h)")
             }
 
             Self::Price { symbol } => {
@@ -126,7 +125,7 @@ impl MarketCommand {
                 let result = client
                     .get_public("/api/v1/ticker/price", &[("symbol", &sym)])
                     .await?;
-                output::render(format, &format!("Price — {}", sym), &result);
+                CommandOutput::new(result, format!("Price — {}", sym))
             }
 
             Self::BookTicker { symbol } => {
@@ -134,7 +133,7 @@ impl MarketCommand {
                 let result = client
                     .get_public("/api/v1/ticker/bookTicker", &[("symbol", &sym)])
                     .await?;
-                output::render(format, &format!("Book Ticker — {}", sym), &result);
+                CommandOutput::new(result, format!("Book Ticker — {}", sym))
             }
 
             Self::Orderbook { symbol, limit } => {
@@ -143,7 +142,7 @@ impl MarketCommand {
                 let result = client
                     .get_public("/api/v1/depth", &[("symbol", &sym), ("limit", &lim)])
                     .await?;
-                output::render(format, &format!("Order Book — {}", sym), &result);
+                CommandOutput::new(result, format!("Order Book — {}", sym))
             }
 
             Self::Trades { symbol, limit } => {
@@ -152,7 +151,7 @@ impl MarketCommand {
                 let result = client
                     .get_public("/api/v1/trades", &[("symbol", &sym), ("limit", &lim)])
                     .await?;
-                output::render(format, &format!("Recent Trades — {}", sym), &result);
+                CommandOutput::new(result, format!("Recent Trades — {}", sym))
             }
 
             Self::HistoricalTrades {
@@ -162,17 +161,16 @@ impl MarketCommand {
             } => {
                 let sym = symbol.to_uppercase();
                 let lim = limit.to_string();
-                let mut params: Vec<(&str, String)> = vec![
-                    ("symbol", sym.clone()),
-                    ("limit", lim),
-                ];
+                let mut params: Vec<(&str, String)> = vec![("symbol", sym.clone()), ("limit", lim)];
                 if let Some(id) = from_id {
                     params.push(("fromId", id.to_string()));
                 }
                 let param_refs: Vec<(&str, &str)> =
                     params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-                let result = client.get_signed("/api/v1/historicalTrades", &param_refs).await?;
-                output::render(format, &format!("Historical Trades — {}", sym), &result);
+                let result = client
+                    .get_signed("/api/v1/historicalTrades", &param_refs)
+                    .await?;
+                CommandOutput::new(result, format!("Historical Trades — {}", sym))
             }
 
             Self::AggTrades { symbol, limit } => {
@@ -181,10 +179,10 @@ impl MarketCommand {
                 let result = client
                     .get_public("/api/v1/aggTrades", &[("symbol", &sym), ("limit", &lim)])
                     .await?;
-                output::render(format, &format!("Aggregate Trades — {}", sym), &result);
+                CommandOutput::new(result, format!("Aggregate Trades — {}", sym))
             }
-        }
+        };
 
-        Ok(())
+        Ok(output.with_format(ctx.format))
     }
 }

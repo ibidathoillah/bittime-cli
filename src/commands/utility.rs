@@ -2,11 +2,10 @@ use clap::Parser;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 
-use crate::client::BittimeClient;
 use crate::errors::BittimeError;
-use crate::output::OutputFormat;
+use crate::AppContext;
 
-pub async fn run_shell(client: &BittimeClient, format: OutputFormat) -> Result<(), BittimeError> {
+pub async fn run_shell(ctx: &AppContext) -> Result<(), BittimeError> {
     use colored::Colorize;
 
     println!("{}", "╔══════════════════════════════════════════╗".cyan());
@@ -16,14 +15,25 @@ pub async fn run_shell(client: &BittimeClient, format: OutputFormat) -> Result<(
     println!("{}", "╚══════════════════════════════════════════╝".cyan());
     println!();
 
-    let mut rl = DefaultEditor::new().map_err(|e| BittimeError::Io(std::io::Error::other(e.to_string())))?;
+    let mut rl =
+        DefaultEditor::new().map_err(|e| BittimeError::Io(std::io::Error::other(e.to_string())))?;
+
+    let history_path = crate::config::Config::history_path()?;
+    // Ensure parent directory exists for history file
+    if let Some(parent) = history_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let _ = rl.load_history(&history_path);
 
     loop {
         let prompt = format!("{} ", "bittime>".green().bold());
         match rl.readline(&prompt) {
             Ok(line) => {
                 let line = line.trim();
-                if line.is_empty() { continue; }
+                if line.is_empty() {
+                    continue;
+                }
                 let _ = rl.add_history_entry(line);
 
                 match line {
@@ -41,7 +51,10 @@ pub async fn run_shell(client: &BittimeClient, format: OutputFormat) -> Result<(
                 // Parse and execute as subcommand
                 let parts = match shlex::split(line) {
                     Some(p) => p,
-                    None => { eprintln!("{} Invalid input", "Error:".red()); continue; }
+                    None => {
+                        eprintln!("{} Invalid input", "Error:".red());
+                        continue;
+                    }
                 };
 
                 // Build full args: ["bittime", ...parts]
@@ -51,12 +64,30 @@ pub async fn run_shell(client: &BittimeClient, format: OutputFormat) -> Result<(
                 // Try to parse and dispatch
                 match crate::Cli::try_parse_from(&args) {
                     Ok(cli) => {
-                        if let Err(e) = crate::dispatch(cli, client, format).await {
-                            crate::output::print_error(format, &e);
+                        if matches!(cli.command, crate::Command::Shell) {
+                            eprintln!("{}", "Error: nested shell is not supported".red());
+                            continue;
+                        }
+
+                        let shell_ctx = AppContext {
+                            client: ctx.client.clone(),
+                            format: ctx.format,
+                            verbose: cli.verbose || ctx.verbose,
+                        };
+
+                        match crate::dispatch_non_shell(&shell_ctx, cli.command).await {
+                            Ok(out) => {
+                                let rendered = out.render();
+                                if !rendered.is_empty() {
+                                    println!("{}", rendered);
+                                }
+                            }
+                            Err(e) => {
+                                crate::output::render_error(ctx.format, &e);
+                            }
                         }
                     }
                     Err(e) => {
-                        // clap parse error — show it
                         eprintln!("{}", e);
                     }
                 }
@@ -75,21 +106,49 @@ pub async fn run_shell(client: &BittimeClient, format: OutputFormat) -> Result<(
         }
     }
 
+    if rl.save_history(&history_path).is_ok() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&history_path, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+
     Ok(())
 }
 
 fn print_shell_help() {
     use colored::Colorize;
     println!("{}", "Available command groups:".bold());
-    println!("  {} — ping, server-time, ticker, orderbook, etc.", "market".cyan());
+    println!(
+        "  {} — ping, server-time, ticker, orderbook, etc.",
+        "market".cyan()
+    );
     println!("  {} — info, balance, trades", "account".cyan());
-    println!("  {}   — buy, sell, cancel, open-orders, etc.", "trade".cyan());
-    println!("  {} — withdraw, deposit, otc-withdraw, etc.", "funding".cyan());
-    println!("  {}      — depth, orders, balances (WebSocket)", "ws".cyan());
-    println!("  {}    — set, show, test, reset credentials", "auth".cyan());
+    println!(
+        "  {}   — buy, sell, cancel, open-orders, etc.",
+        "trade".cyan()
+    );
+    println!(
+        "  {} — withdraw, deposit, otc-withdraw, etc.",
+        "funding".cyan()
+    );
+    println!(
+        "  {}      — depth, orders, balances (WebSocket)",
+        "ws".cyan()
+    );
+    println!(
+        "  {}    — set, show, test, reset credentials",
+        "auth".cyan()
+    );
     println!();
     println!("  {}    — show this help", "help".yellow());
     println!("  {}    — quit the shell", "exit".yellow());
     println!();
-    println!("Example: {} {} {}", "market".cyan(), "ticker".white(), "USDTIDR".green());
+    println!(
+        "Example: {} {} {}",
+        "market".cyan(),
+        "ticker".white(),
+        "USDTIDR".green()
+    );
 }

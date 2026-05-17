@@ -65,11 +65,21 @@ fn default_host() -> String {
 }
 
 impl Config {
-    /// Returns the config file path: `~/.config/bittime/config.toml`
-    pub fn config_path() -> Result<PathBuf, BittimeError> {
+    /// Returns the config directory: `~/.config/bittime`
+    pub fn config_dir() -> Result<PathBuf, BittimeError> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| BittimeError::Config("Cannot determine config directory".to_string()))?;
-        Ok(config_dir.join("bittime").join("config.toml"))
+        Ok(config_dir.join("bittime"))
+    }
+
+    /// Returns the config file path: `~/.config/bittime/config.toml`
+    pub fn config_path() -> Result<PathBuf, BittimeError> {
+        Ok(Self::config_dir()?.join("config.toml"))
+    }
+
+    /// Returns the shell history file path: `~/.config/bittime/history`
+    pub fn history_path() -> Result<PathBuf, BittimeError> {
+        Ok(Self::config_dir()?.join("history"))
     }
 
     /// Load config from disk. Returns default config if file doesn't exist.
@@ -80,7 +90,11 @@ impl Config {
         }
 
         let content = fs::read_to_string(&path).map_err(|e| {
-            BittimeError::Config(format!("Failed to read config at {}: {}", path.display(), e))
+            BittimeError::Config(format!(
+                "Failed to read config at {}: {}",
+                path.display(),
+                e
+            ))
         })?;
 
         let config: Config = toml::from_str(&content).map_err(|e| {
@@ -109,9 +123,8 @@ impl Config {
             })?;
         }
 
-        let content = toml::to_string_pretty(self).map_err(|e| {
-            BittimeError::Config(format!("Failed to serialize config: {}", e))
-        })?;
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| BittimeError::Config(format!("Failed to serialize config: {}", e)))?;
 
         fs::write(&path, &content).map_err(|e| {
             BittimeError::Config(format!(
@@ -160,10 +173,7 @@ pub struct Credentials {
 
 impl Credentials {
     /// Resolve credentials from available sources.
-    pub fn resolve(
-        cli_key: Option<&str>,
-        cli_secret: Option<&str>,
-    ) -> Result<Self, BittimeError> {
+    pub fn resolve(cli_key: Option<&str>, cli_secret: Option<&str>) -> Result<Self, BittimeError> {
         // 1. CLI flags
         if let (Some(key), Some(secret)) = (cli_key, cli_secret) {
             return Ok(Self {
@@ -211,17 +221,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_config() {
-        let config = Config::default();
-        assert_eq!(config.settings.host, DEFAULT_HOST);
-        assert_eq!(config.settings.output, "table");
-        assert!(config.auth.api_key.is_none());
+    fn test_config_resolve() {
+        // 1. Resolve from CLI
+        let res = Credentials::resolve(Some("cli_key"), Some("cli_secret")).unwrap();
+        assert_eq!(res.api_key, "cli_key");
+
+        // 2. Resolve from Env
+        std::env::set_var("BITTIME_API_KEY", "env_key");
+        std::env::set_var("BITTIME_API_SECRET", "env_secret");
+        let res = Credentials::resolve(None, None).unwrap();
+        assert_eq!(res.api_key, "env_key");
+        std::env::remove_var("BITTIME_API_KEY");
+        std::env::remove_var("BITTIME_API_SECRET");
+
+        // 3. Resolve from Config (mocking load is hard, but we can test the fallback)
+        let res = Credentials::resolve(None, None);
+        assert!(res.is_err());
     }
 
     #[test]
-    fn test_config_path() {
-        let path = Config::config_path().unwrap();
-        assert!(path.to_string_lossy().contains("bittime"));
-        assert!(path.to_string_lossy().ends_with("config.toml"));
+    fn test_available() {
+        assert!(Credentials::available(Some("k"), Some("s")));
+        assert!(!Credentials::available(None, None));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_save_and_load() {
+        let temp = tempfile::tempdir().unwrap();
+        let original_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", temp.path());
+
+        let mut config = Config::default();
+        config.settings.output = "json".to_string();
+        config.save().expect("Save failed");
+
+        let loaded = Config::load().expect("Load failed");
+        assert_eq!(loaded.settings.output, "json");
+
+        if let Some(h) = original_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 }

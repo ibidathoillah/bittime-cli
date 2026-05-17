@@ -10,6 +10,8 @@
 #   ./scripts/e2e_test.sh              # Run all tests
 #   ./scripts/e2e_test.sh --public     # Run public tests only
 #   ./scripts/e2e_test.sh --private    # Run private tests only
+#   ./scripts/e2e_test.sh --ws         # Run bounded WebSocket smoke tests
+#   ./scripts/e2e_test.sh --private-no-precheck  # Run private tests even if auth precheck fails
 # =============================================================================
 
 set -euo pipefail
@@ -113,11 +115,20 @@ check_credentials() {
 
 RUN_PUBLIC=true
 RUN_PRIVATE=true
+RUN_WS=false
+SKIP_PRIVATE_PRECHECK=false
 
 if [[ "${1:-}" == "--public" ]]; then
     RUN_PRIVATE=false
 elif [[ "${1:-}" == "--private" ]]; then
     RUN_PUBLIC=false
+elif [[ "${1:-}" == "--ws" ]]; then
+    RUN_PUBLIC=false
+    RUN_PRIVATE=false
+    RUN_WS=true
+elif [[ "${1:-}" == "--private-no-precheck" ]]; then
+    RUN_PUBLIC=false
+    SKIP_PRIVATE_PRECHECK=true
 fi
 
 # =============================================================================
@@ -223,12 +234,28 @@ if $RUN_PRIVATE; then
 log_header "PRIVATE — Account & Trade (requires credentials)"
 
 HAS_CREDS=false
-if check_credentials; then
+AUTH_TEST_OUTPUT=""
+AUTH_TEST_EXIT=0
+
+if $SKIP_PRIVATE_PRECHECK; then
+    HAS_CREDS=true
+    echo -e "  ${YELLOW}Skipping credential precheck (--private-no-precheck)${NC}"
+else
+    AUTH_TEST_OUTPUT=$($BINARY auth test 2>&1) || AUTH_TEST_EXIT=$?
+    if [ $AUTH_TEST_EXIT -eq 0 ]; then
+        HAS_CREDS=true
+    fi
+fi
+
+if $HAS_CREDS && ! $SKIP_PRIVATE_PRECHECK; then
     HAS_CREDS=true
     echo -e "  ${GREEN}Credentials verified ✓${NC}"
 else
-    echo -e "  ${YELLOW}No valid credentials — skipping private tests${NC}"
-    echo -e "  Configure with: ${CYAN}bittime auth set --api-key KEY --api-secret SECRET${NC}"
+    if ! $SKIP_PRIVATE_PRECHECK; then
+        echo -e "  ${YELLOW}Credential precheck failed — skipping private tests${NC}"
+        echo -e "  Reason: $(echo "$AUTH_TEST_OUTPUT" | head -1)"
+        echo -e "  Configure with: ${CYAN}bittime auth set --api-key KEY --api-secret SECRET${NC}"
+    fi
 fi
 
 if $HAS_CREDS; then
@@ -271,18 +298,18 @@ if $HAS_CREDS; then
     run_test "trade pending-orders $PAIR" \
         $BINARY -o json trade pending-orders "$PAIR"
 
-    run_test "trade book-orders $PAIR" \
-        $BINARY -o json trade book-orders "$PAIR"
+    run_test_json "trade book-orders $PAIR" \
+        $BINARY -o json trade book-orders "$PAIR" -l 5
 
     run_test_json "market historical-trades $PAIR" \
         $BINARY -o json market historical-trades "$PAIR" -l 5
 
     # Funding read-only tests
-    run_test "funding withdraw-history" \
-        $BINARY -o json funding withdraw-history
+    run_test "funding withdraw-history $TEST_COIN" \
+        $BINARY -o json funding withdraw-history --coin "$TEST_COIN"
 
-    run_test "funding deposit-history" \
-        $BINARY -o json funding deposit-history
+    run_test "funding deposit-history $TEST_COIN" \
+        $BINARY -o json funding deposit-history --coin "$TEST_COIN"
 
     run_test "funding otc-deposit-history" \
         $BINARY -o json funding otc-deposit-history
@@ -311,6 +338,39 @@ else
 fi
 
 fi  # RUN_PRIVATE
+
+# =============================================================================
+# WEBSOCKET TESTS
+# =============================================================================
+
+if $RUN_WS; then
+
+log_header "WEBSOCKET — Market & User Streams"
+
+run_test "ws depth $PAIR_LOWER" \
+    $BINARY -o json ws depth "$PAIR_LOWER" --limit 1 --seconds 15
+
+AUTH_TEST_OUTPUT=""
+AUTH_TEST_EXIT=0
+AUTH_TEST_OUTPUT=$($BINARY auth test 2>&1) || AUTH_TEST_EXIT=$?
+if [ "${AUTH_TEST_EXIT:-0}" -eq 0 ]; then
+    run_test "ws balances subscribe" \
+        $BINARY -o json ws balances --limit 1 --seconds 5
+
+    run_test "ws orders subscribe" \
+        $BINARY -o json ws orders --limit 1 --seconds 5
+
+    run_test "ws raw user balance channel" \
+        $BINARY -o json ws user user_balance_update --limit 1 --seconds 5
+else
+    echo -e "  ${YELLOW}Credential precheck failed — skipping private WebSocket tests${NC}"
+    echo -e "  Reason: $(echo "$AUTH_TEST_OUTPUT" | head -1)"
+    skip_test "ws balances subscribe"
+    skip_test "ws orders subscribe"
+    skip_test "ws raw user balance channel"
+fi
+
+fi  # RUN_WS
 
 # =============================================================================
 # Summary

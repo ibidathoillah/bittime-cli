@@ -1,78 +1,108 @@
+use super::CommandOutput;
+use colored::Colorize;
 use comfy_table::{Cell, Color, ContentArrangement, Table};
 use serde_json::Value;
 
-/// Auto-detect the response shape and print a suitable table.
-pub fn print_auto(label: &str, value: &Value) {
+/// Render the command output as a human-readable table or formatted text.
+pub fn render(output: &CommandOutput) -> String {
+    if output.label.is_empty() && output.data.is_null() && output.addendum.is_none() {
+        return String::new();
+    }
+
+    let mut result = String::new();
+
+    // 1. If explicit headers/rows are provided, use them
+    if !output.headers.is_empty() && !output.rows.is_empty() {
+        if !output.label.is_empty() {
+            result.push_str(&format!("{}\n", output.label.bold()));
+        }
+
+        let mut table = Table::new();
+        table.set_content_arrangement(ContentArrangement::Dynamic);
+
+        let header_cells: Vec<Cell> = output
+            .headers
+            .iter()
+            .map(|h| Cell::new(h).fg(Color::Cyan))
+            .collect();
+        table.set_header(header_cells);
+
+        for row_data in &output.rows {
+            let cells: Vec<Cell> = row_data.iter().map(Cell::new).collect();
+            table.add_row(cells);
+        }
+
+        result.push_str(&format!("{table}"));
+    }
+    // 2. Otherwise, fall back to auto-detection from JSON data
+    else {
+        result.push_str(&auto_table(&output.label, &output.data));
+    }
+
+    // 3. Append addendum if present
+    if let Some(ref addendum) = output.addendum {
+        use colored::Colorize;
+        result.push_str(&format!("\n\n{} {}", "✓".green().bold(), addendum));
+    }
+
+    result
+}
+
+fn auto_table(label: &str, value: &Value) -> String {
     match value {
         Value::Array(arr) if !arr.is_empty() => {
             if arr[0].is_object() {
-                print_object_array(arr);
+                object_array_to_string(arr)
             } else {
-                // Simple array of values
-                println!("{}", serde_json::to_string_pretty(value).unwrap_or_default());
+                serde_json::to_string_pretty(value).unwrap_or_default()
             }
         }
         Value::Object(map) => {
-            // Check for nested data patterns
             if let Some(data) = map.get("data") {
                 if data.is_array() {
-                    print_auto(label, data);
-                    return;
+                    return auto_table(label, data);
                 }
                 if data.is_object() {
-                    print_key_value(label, data);
-                    return;
+                    return key_value_to_string(label, data);
                 }
             }
 
-            // Check for balances array inside account info
             if let Some(balances) = map.get("balances") {
                 if balances.is_array() {
-                    print_balances(balances);
-                    return;
+                    return balances_to_string(balances);
                 }
             }
 
-            // Check for bids/asks (orderbook)
             if map.contains_key("bids") || map.contains_key("asks") || map.contains_key("buys") {
-                print_orderbook(value);
-                return;
+                return orderbook_to_string(value);
             }
 
-            // Generic key-value table
-            print_key_value(label, value);
+            key_value_to_string(label, value)
         }
-        _ => {
-            println!("{}", serde_json::to_string_pretty(value).unwrap_or_default());
-        }
+        _ => serde_json::to_string_pretty(value).unwrap_or_default(),
     }
 }
 
-/// Print an array of JSON objects as a table.
-fn print_object_array(arr: &[Value]) {
+fn object_array_to_string(arr: &[Value]) -> String {
     if arr.is_empty() {
-        println!("(no data)");
-        return;
+        return "(no data)".to_string();
     }
 
-    // Collect column headers from first object
     let headers: Vec<String> = if let Some(obj) = arr[0].as_object() {
         obj.keys().cloned().collect()
     } else {
-        return;
+        return String::new();
     };
 
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
 
-    // Header row
     let header_cells: Vec<Cell> = headers
         .iter()
         .map(|h| Cell::new(h).fg(Color::Cyan))
         .collect();
     table.set_header(header_cells);
 
-    // Data rows
     for item in arr {
         let row: Vec<Cell> = headers
             .iter()
@@ -84,11 +114,10 @@ fn print_object_array(arr: &[Value]) {
         table.add_row(row);
     }
 
-    println!("{table}");
+    format!("{table}")
 }
 
-/// Print a JSON object as key-value pairs.
-fn print_key_value(label: &str, value: &Value) {
+fn key_value_to_string(label: &str, value: &Value) -> String {
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
     table.set_header(vec![
@@ -98,17 +127,13 @@ fn print_key_value(label: &str, value: &Value) {
 
     if let Some(obj) = value.as_object() {
         for (key, val) in obj {
-            // Skip nested objects/arrays for the flat view
             if val.is_object() || val.is_array() {
                 let summary = match val {
                     Value::Array(a) => format!("[{} items]", a.len()),
                     Value::Object(o) => format!("{{{} fields}}", o.len()),
                     _ => format_value(val),
                 };
-                table.add_row(vec![
-                    Cell::new(key).fg(Color::Green),
-                    Cell::new(summary),
-                ]);
+                table.add_row(vec![Cell::new(key).fg(Color::Green), Cell::new(summary)]);
             } else {
                 table.add_row(vec![
                     Cell::new(key).fg(Color::Green),
@@ -118,15 +143,15 @@ fn print_key_value(label: &str, value: &Value) {
         }
     }
 
+    let mut out = String::new();
     if !label.is_empty() {
-        use colored::Colorize;
-        println!("{}", label.bold());
+        out.push_str(&format!("{}\n", label.bold()));
     }
-    println!("{table}");
+    out.push_str(&format!("{table}"));
+    out
 }
 
-/// Print balances in a clean table (only non-zero balances).
-fn print_balances(value: &Value) {
+fn balances_to_string(value: &Value) -> String {
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
     table.set_header(vec![
@@ -140,7 +165,6 @@ fn print_balances(value: &Value) {
             let free = item["free"].as_str().unwrap_or("0");
             let locked = item["locked"].as_str().unwrap_or("0");
 
-            // Only show non-zero balances
             let free_f: f64 = free.parse().unwrap_or(0.0);
             let locked_f: f64 = locked.parse().unwrap_or(0.0);
             if free_f == 0.0 && locked_f == 0.0 {
@@ -160,17 +184,10 @@ fn print_balances(value: &Value) {
         }
     }
 
-    use colored::Colorize;
-    println!("{}", "Account Balances".bold());
-    println!("{table}");
+    format!("{}\n{table}", "Account Balances".bold())
 }
 
-/// Print orderbook (bids/asks).
-fn print_orderbook(value: &Value) {
-    use colored::Colorize;
-    println!("{}", "Order Book".bold());
-
-    // Asks (sell side)
+fn orderbook_to_string(value: &Value) -> String {
     let asks_key = if value.get("asks").is_some() {
         "asks"
     } else {
@@ -190,7 +207,6 @@ fn print_orderbook(value: &Value) {
         Cell::new("Side").fg(Color::Cyan),
     ]);
 
-    // Print asks (reversed so lowest ask is near the spread)
     if let Some(asks) = value.get(asks_key).and_then(|v| v.as_array()) {
         let mut ask_rows: Vec<_> = asks
             .iter()
@@ -213,14 +229,12 @@ fn print_orderbook(value: &Value) {
         }
     }
 
-    // Spread separator
     table.add_row(vec![
         Cell::new("───────").fg(Color::DarkGrey),
         Cell::new("───────").fg(Color::DarkGrey),
         Cell::new("SPREAD").fg(Color::DarkGrey),
     ]);
 
-    // Print bids
     if let Some(bids) = value.get(bids_key).and_then(|v| v.as_array()) {
         for bid in bids {
             if let Some(arr) = bid.as_array() {
@@ -235,10 +249,9 @@ fn print_orderbook(value: &Value) {
         }
     }
 
-    println!("{table}");
+    format!("{}\n{table}", "Order Book".bold())
 }
 
-/// Format a JSON value for display in a table cell.
 fn format_value(val: &Value) -> String {
     match val {
         Value::Null => "—".to_string(),

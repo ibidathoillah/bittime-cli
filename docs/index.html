@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>bittime-cli</title>
+    <meta
+      name="description"
+      content="Unofficial Rust CLI for Bittime market data, account management, trading, funding, WebSocket streams, and MCP."
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #10141f;
+        --muted: #5d667a;
+        --line: #d8deea;
+        --panel: #ffffff;
+        --wash: #f5f7fb;
+        --green: #12805c;
+        --blue: #195ccf;
+        --violet: #6544c6;
+        --amber: #9b5f00;
+        --shell: #111827;
+        --shell-2: #1f2937;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--wash);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      a {
+        color: var(--blue);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .wrap {
+        width: min(1120px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        background: rgba(245, 247, 251, 0.92);
+        backdrop-filter: blur(14px);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      nav {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--ink);
+        font-weight: 800;
+      }
+
+      .mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
+        background: conic-gradient(from 210deg, var(--green), var(--blue), var(--violet), var(--green));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+      }
+
+      .links {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-size: 14px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--ink);
+        background: var(--panel);
+        font-weight: 650;
+      }
+
+      .button.primary {
+        border-color: #0f6b4f;
+        background: var(--green);
+        color: white;
+      }
+
+      .hero {
+        padding: 70px 0 46px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+        gap: 42px;
+        align-items: center;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--green);
+        font-size: 14px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(44px, 7vw, 78px);
+        line-height: 0.96;
+        letter-spacing: 0;
+      }
+
+      .lead {
+        margin: 22px 0 0;
+        max-width: 680px;
+        color: var(--muted);
+        font-size: 19px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .terminal {
+        overflow: hidden;
+        border-radius: 8px;
+        background: var(--shell);
+        box-shadow: 0 18px 44px rgba(16, 20, 31, 0.24);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .terminal-bar {
+        height: 38px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 14px;
+        background: var(--shell-2);
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+
+      .red {
+        background: #f87171;
+      }
+
+      .yellow {
+        background: #fbbf24;
+      }
+
+      .green {
+        background: #34d399;
+      }
+
+      pre {
+        margin: 0;
+        padding: 22px;
+        overflow: auto;
+        color: #d1fae5;
+        font: 14px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      .prompt {
+        color: #93c5fd;
+      }
+
+      .ok {
+        color: #86efac;
+      }
+
+      .dim {
+        color: #9ca3af;
+      }
+
+      section {
+        padding: 46px 0;
+      }
+
+      .section-head {
+        max-width: 720px;
+        margin-bottom: 24px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 32px;
+        line-height: 1.12;
+        letter-spacing: 0;
+      }
+
+      .section-head p {
+        margin: 10px 0 0;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .features {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 20px;
+      }
+
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .matrix {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .commands {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .command-block {
+        background: var(--shell);
+        color: #e5e7eb;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #374151;
+      }
+
+      .command-block h3 {
+        margin: 0;
+        padding: 13px 16px;
+        background: var(--shell-2);
+        font-size: 15px;
+      }
+
+      .command-block pre {
+        color: #e5e7eb;
+        box-shadow: none;
+      }
+
+      .status {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .stat {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+      }
+
+      .stat strong {
+        display: block;
+        font-size: 26px;
+      }
+
+      .stat span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      footer {
+        padding: 34px 0 50px;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+      }
+
+      @media (max-width: 900px) {
+        .hero-grid,
+        .matrix,
+        .commands {
+          grid-template-columns: 1fr;
+        }
+
+        .features,
+        .status {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .links {
+          display: none;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .wrap {
+          width: min(100% - 28px, 1120px);
+        }
+
+        .features,
+        .status {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          padding-top: 44px;
+        }
+
+        h1 {
+          font-size: 44px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav class="wrap" aria-label="Primary navigation">
+        <a class="brand" href="#">
+          <span class="mark" aria-hidden="true"></span>
+          <span>bittime-cli</span>
+        </a>
+        <div class="links">
+          <a href="#features">Features</a>
+          <a href="#websocket">WebSocket</a>
+          <a href="#commands">Commands</a>
+          <a href="#testing">Testing</a>
+          <a class="button" href="https://github.com/ibidathoillah/bittime-cli">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">Rust terminal toolkit for Bittime</p>
+            <h1>bittime-cli</h1>
+            <p class="lead">
+              Market data, account inspection, spot order workflows, funding history,
+              live WebSocket streams, and MCP tool exposure from one compact command line.
+            </p>
+            <div class="actions">
+              <a class="button primary" href="#install">Install</a>
+              <a class="button" href="#commands">View commands</a>
+            </div>
+          </div>
+
+          <div class="terminal" aria-label="Terminal example">
+            <div class="terminal-bar">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+            </div>
+            <pre><span class="prompt">$</span> bittime market ticker USDTIDR
+24h Ticker - USDTIDR
+priceChangePercent  volume  lastPrice
+...
+
+<span class="prompt">$</span> bittime ws depth usdtidr --limit 1
+<span class="ok">WS Subscribed to depth for usdtidr</span>
+asks / buys / timestamp
+
+<span class="prompt">$</span> bittime -o json trade open-orders USDTIDR
+<span class="dim">{ "success": true, "data": [] }</span></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Built for real exchange workflows</h2>
+            <p>Public endpoints, signed private requests, live streams, and automation output are handled consistently.</p>
+          </div>
+          <div class="grid features">
+            <article class="card">
+              <h3>Market Data</h3>
+              <p>Tickers, prices, book ticker, order book depth, recent trades, aggregate trades, and exchange info.</p>
+            </article>
+            <article class="card">
+              <h3>Private API</h3>
+              <p>Account info, balances, assets, open orders, all orders, trade history, and funding history.</p>
+            </article>
+            <article class="card">
+              <h3>Trading</h3>
+              <p>Place market or limit orders, query order state, cancel active orders, and inspect active books.</p>
+            </article>
+            <article class="card">
+              <h3>WebSocket</h3>
+              <p>Market depth, private order updates, private balance updates, raw channels, gzip frames, and ping/pong.</p>
+            </article>
+            <article class="card">
+              <h3>MCP</h3>
+              <p>Expose CLI commands as JSON-RPC tools for agents and local automation environments.</p>
+            </article>
+            <article class="card">
+              <h3>Safe Credentials</h3>
+              <p>Use CLI flags, environment variables, or a local config file stored with restrictive permissions.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="install">
+        <div class="wrap matrix">
+          <div class="section-head">
+            <h2>Install</h2>
+            <p>Build directly with Cargo and run from your terminal.</p>
+          </div>
+          <div class="command-block">
+            <h3>From source</h3>
+            <pre>git clone https://github.com/ibidathoillah/bittime-cli.git
+cd bittime-cli
+cargo install --path .
+bittime --help</pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="websocket">
+        <div class="wrap matrix">
+          <div>
+            <div class="section-head">
+              <h2>Live WebSocket streams</h2>
+              <p>
+                The CLI handles Bittime market gzip frames and user stream keepalive,
+                with bounded stream options for scripts and CI smoke tests.
+              </p>
+            </div>
+            <div class="status">
+              <div class="stat"><strong>gzip</strong><span>market frame decoding</span></div>
+              <div class="stat"><strong>pong</strong><span>market and user heartbeats</span></div>
+              <div class="stat"><strong>raw</strong><span>private user channels</span></div>
+              <div class="stat"><strong>CI</strong><span>bounded `--ws` smoke mode</span></div>
+            </div>
+          </div>
+          <div class="command-block">
+            <h3>Streaming examples</h3>
+            <pre>bittime ws depth usdtidr
+bittime ws depth usdtidr --limit 1 --seconds 15
+bittime ws orders
+bittime ws balances
+bittime ws user user_order_update</pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="commands">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Command surface</h2>
+            <p>Use tables while working interactively and JSON when composing scripts.</p>
+          </div>
+          <div class="commands">
+            <div class="command-block">
+              <h3>Market</h3>
+              <pre>bittime market ping
+bittime market ticker USDTIDR
+bittime market orderbook USDTIDR -l 10
+bittime market trades USDTIDR -l 5</pre>
+            </div>
+            <div class="command-block">
+              <h3>Account</h3>
+              <pre>bittime account balance
+bittime account assets usdt
+bittime account trades-v2 USDTIDR
+bittime -o json account info</pre>
+            </div>
+            <div class="command-block">
+              <h3>Trade</h3>
+              <pre>bittime trade open-orders USDTIDR
+bittime trade all-orders USDTIDR
+bittime trade book-orders USDTIDR -l 5
+bittime trade cancel USDTIDR --order-id 123</pre>
+            </div>
+            <div class="command-block">
+              <h3>Funding</h3>
+              <pre>bittime funding withdraw-history --coin usdt
+bittime funding deposit-history --coin usdt
+bittime funding otc-va-code --bank-id 7
+bittime funding otc-withdraw-history --limit 10</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="testing">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Verified against live API smoke tests</h2>
+            <p>Public REST, signed private REST, and bounded WebSocket checks are covered by the e2e script.</p>
+          </div>
+          <div class="status">
+            <div class="stat"><strong>16</strong><span>unit tests passed</span></div>
+            <div class="stat"><strong>22</strong><span>public checks passed</span></div>
+            <div class="stat"><strong>19</strong><span>private checks passed</span></div>
+            <div class="stat"><strong>4</strong><span>WebSocket checks passed</span></div>
+          </div>
+          <div class="command-block" style="margin-top: 16px">
+            <h3>E2E commands</h3>
+            <pre>./scripts/e2e_test.sh --public
+./scripts/e2e_test.sh --private
+./scripts/e2e_test.sh --ws</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          Unofficial project. Not affiliated with or endorsed by Bittime.
+          API docs: <a href="https://bittime-docs.github.io/">bittime-docs.github.io</a>.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
