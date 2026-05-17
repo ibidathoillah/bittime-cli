@@ -225,7 +225,14 @@ mod tests {
     use super::*;
 
     #[test]
+    #[serial_test::serial]
     fn test_config_resolve() {
+        std::env::remove_var("BITTIME_API_KEY");
+        std::env::remove_var("BITTIME_API_SECRET");
+        let original_home = std::env::var("HOME").ok();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+
         // 1. Resolve from CLI
         let res = Credentials::resolve(Some("cli_key"), Some("cli_secret")).unwrap();
         assert_eq!(res.api_key, "cli_key");
@@ -241,17 +248,38 @@ mod tests {
         // 3. Resolve from Config (mocking load is hard, but we can test the fallback)
         let res = Credentials::resolve(None, None);
         assert!(res.is_err());
+
+        if let Some(h) = original_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_available() {
+        std::env::remove_var("BITTIME_API_KEY");
+        std::env::remove_var("BITTIME_API_SECRET");
+        let original_home = std::env::var("HOME").ok();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+
         assert!(Credentials::available(Some("k"), Some("s")));
         assert!(!Credentials::available(None, None));
+
+        if let Some(h) = original_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 
     #[test]
     #[serial_test::serial]
     fn test_save_and_load() {
+        std::env::remove_var("BITTIME_API_KEY");
+        std::env::remove_var("BITTIME_API_SECRET");
         let temp = tempfile::tempdir().unwrap();
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp.path());

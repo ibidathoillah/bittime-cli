@@ -156,46 +156,46 @@ if $RUN_PUBLIC; then
 log_header "PUBLIC — Market Data"
 
 run_test "market ping (table)" \
-    $BINARY market ping
+    $BINARY ping
 
 run_test "market ping (json)" \
-    $BINARY -o json market ping
+    $BINARY -o json ping
 
 run_test "market server-time (table)" \
-    $BINARY market server-time
+    $BINARY server-time
 
 run_test_json "market server-time (json)" \
-    $BINARY -o json market server-time
+    $BINARY -o json server-time
 
 run_test "market exchange-info" \
-    $BINARY -o json market exchange-info
+    $BINARY -o json exchange-info
 
 run_test "market ticker $PAIR (table)" \
-    $BINARY market ticker "$PAIR"
+    $BINARY ticker "$PAIR"
 
 run_test_json "market ticker $PAIR (json)" \
-    $BINARY -o json market ticker "$PAIR"
+    $BINARY -o json ticker "$PAIR"
 
 run_test "market ticker-all (json)" \
-    $BINARY -o json market ticker-all
+    $BINARY -o json ticker-all
 
 run_test_json "market price $PAIR" \
-    $BINARY -o json market price "$PAIR"
+    $BINARY -o json price "$PAIR"
 
 run_test_json "market book-ticker $PAIR" \
-    $BINARY -o json market book-ticker "$PAIR"
+    $BINARY -o json book-ticker "$PAIR"
 
 run_test "market orderbook $PAIR (table)" \
-    $BINARY market orderbook "$PAIR" -l 5
+    $BINARY orderbook "$PAIR" --count 5
 
 run_test_json "market orderbook $PAIR (json)" \
-    $BINARY -o json market orderbook "$PAIR" -l 5
+    $BINARY -o json orderbook "$PAIR" --count 5
 
 run_test_json "market trades $PAIR (limit=5)" \
-    $BINARY -o json market trades "$PAIR" -l 5
+    $BINARY -o json trades "$PAIR" --count 5
 
 run_test_json "market agg-trades $PAIR (limit=5)" \
-    $BINARY -o json market agg-trades "$PAIR" -l 5
+    $BINARY -o json agg-trades "$PAIR" --count 5
 
 log_header "PUBLIC — CLI Features"
 
@@ -206,16 +206,16 @@ run_test "--version" \
     $BINARY --version
 
 run_test "market --help" \
-    $BINARY market --help
+    $BINARY ping --help
 
 run_test "account --help" \
-    $BINARY account --help
+    $BINARY account-info --help
 
 run_test "trade --help" \
-    $BINARY trade --help
+    $BINARY order --help
 
 run_test "funding --help" \
-    $BINARY funding --help
+    $BINARY deposit --help
 
 run_test "ws --help" \
     $BINARY ws --help
@@ -266,56 +266,56 @@ if $HAS_CREDS; then
         $BINARY auth show
 
     run_test "account info (table)" \
-        $BINARY account info
+        $BINARY account-info
 
     run_test_json "account info (json)" \
-        $BINARY -o json account info
+        $BINARY -o json account-info
 
     run_test "account balance (table)" \
-        $BINARY account balance
+        $BINARY balance
 
     run_test_json "account balance (json)" \
-        $BINARY -o json account balance
+        $BINARY -o json balance
 
     run_test_json "account info-v2" \
-        $BINARY -o json account info-v2
+        $BINARY -o json account-info-v2
 
     run_test_json "account assets $TEST_COIN" \
-        $BINARY -o json account assets "$TEST_COIN"
+        $BINARY -o json assets "$TEST_COIN"
 
     run_test_json "account trades $PAIR" \
-        $BINARY -o json account trades "$PAIR"
+        $BINARY -o json trades-history "$PAIR"
 
     run_test_json "account trades-v2 $PAIR" \
-        $BINARY -o json account trades-v2 "$PAIR"
+        $BINARY -o json trades-history-v2 "$PAIR"
 
     run_test "trade open-orders $PAIR" \
-        $BINARY -o json trade open-orders "$PAIR"
+        $BINARY -o json order open-orders "$PAIR"
 
     run_test "trade all-orders $PAIR" \
-        $BINARY -o json trade all-orders "$PAIR"
+        $BINARY -o json order all-orders "$PAIR"
 
     run_test "trade pending-orders $PAIR" \
-        $BINARY -o json trade pending-orders "$PAIR"
+        $BINARY -o json order pending-orders "$PAIR"
 
     run_test_json "trade book-orders $PAIR" \
-        $BINARY -o json trade book-orders "$PAIR" -l 5
+        $BINARY -o json order book-orders "$PAIR" --count 5
 
     run_test_json "market historical-trades $PAIR" \
-        $BINARY -o json market historical-trades "$PAIR" -l 5
+        $BINARY -o json historical-trades "$PAIR" --count 5
 
     # Funding read-only tests
     run_test "funding withdraw-history $TEST_COIN" \
-        $BINARY -o json funding withdraw-history --coin "$TEST_COIN"
+        $BINARY -o json withdrawal status --asset "$TEST_COIN"
 
     run_test "funding deposit-history $TEST_COIN" \
-        $BINARY -o json funding deposit-history --coin "$TEST_COIN"
+        $BINARY -o json deposit status --asset "$TEST_COIN"
 
     run_test "funding otc-deposit-history" \
-        $BINARY -o json funding otc-deposit-history
+        $BINARY -o json deposit otc-status
 
     run_test "funding otc-withdraw-history" \
-        $BINARY -o json funding otc-withdraw-history
+        $BINARY -o json withdrawal otc-status
 
 else
     skip_test "auth test"

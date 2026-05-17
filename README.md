@@ -44,7 +44,7 @@ Run with Docker:
 
 ```bash
 docker run --rm ibidathoillah/bittime-cli --help
-docker run --rm -e BITTIME_API_KEY -e BITTIME_API_SECRET ibidathoillah/bittime-cli account balance
+docker run --rm -e BITTIME_API_KEY -e BITTIME_API_SECRET ibidathoillah/bittime-cli balance
 ```
 
 Run from the checkout:
@@ -59,10 +59,10 @@ cargo build
 Market data does not require credentials:
 
 ```bash
-bittime market ping
-bittime market ticker USDTIDR
-bittime market orderbook USDTIDR -l 10
-bittime -o json market book-ticker USDTIDR
+bittime ping
+bittime ticker USDTIDR
+bittime orderbook USDTIDR --count 10
+bittime -o json book-ticker USDTIDR
 ```
 
 Configure private API credentials:
@@ -103,42 +103,42 @@ Options:
 ### Market
 
 ```bash
-bittime market ping
-bittime market server-time
-bittime market exchange-info
-bittime market ticker USDTIDR
-bittime market ticker-all
-bittime market price USDTIDR
-bittime market book-ticker USDTIDR
-bittime market orderbook USDTIDR -l 10
-bittime market trades USDTIDR -l 5
-bittime market agg-trades USDTIDR -l 5
-bittime market historical-trades USDTIDR -l 5
+bittime ping
+bittime server-time
+bittime exchange-info
+bittime ticker USDTIDR
+bittime ticker-all
+bittime price USDTIDR
+bittime book-ticker USDTIDR
+bittime orderbook USDTIDR --count 10
+bittime trades USDTIDR --count 5
+bittime agg-trades USDTIDR --count 5
+bittime historical-trades USDTIDR --count 5
 ```
 
 ### Account
 
 ```bash
-bittime account info
-bittime account balance
-bittime account info-v2
-bittime account assets usdt
-bittime account trades USDTIDR
-bittime account trades-v2 USDTIDR --from-id 123
-bittime account trade-history USDTIDR
+bittime account-info
+bittime balance
+bittime account-info-v2
+bittime assets usdt
+bittime trades-history USDTIDR
+bittime trades-history-v2 USDTIDR --since 123
+bittime trades-legacy USDTIDR
 ```
 
 ### Trading
 
 ```bash
-bittime trade buy USDTIDR -t LIMIT -p 16000 -q 1
-bittime trade sell USDTIDR -t MARKET -q 1
-bittime trade cancel USDTIDR --order-id 123456
-bittime trade query USDTIDR --order-id 123456
-bittime trade open-orders USDTIDR
-bittime trade all-orders USDTIDR
-bittime trade pending-orders USDTIDR
-bittime trade book-orders USDTIDR -l 5
+bittime order buy USDTIDR -t LIMIT -p 16000 --volume 1
+bittime order sell USDTIDR -t MARKET --volume 1
+bittime order cancel USDTIDR --order-id 123456
+bittime order query USDTIDR --order-id 123456
+bittime order open-orders USDTIDR
+bittime order all-orders USDTIDR
+bittime order pending-orders USDTIDR
+bittime order book-orders USDTIDR --count 5
 ```
 
 Notes:
@@ -149,12 +149,12 @@ Notes:
 ### Funding
 
 ```bash
-bittime funding withdraw --coin USDT --amount 100 --address 0x... --chain ERC20
-bittime funding withdraw-history --coin usdt
-bittime funding deposit-history --coin usdt
-bittime funding otc-va-code --bank-id 7
-bittime funding otc-deposit-history --limit 10
-bittime funding otc-withdraw-history --limit 10
+bittime withdraw --asset USDT --volume 100 --address 0x... --network ERC20
+bittime withdrawal status --asset usdt
+bittime deposit status --asset usdt
+bittime deposit va --bank-id 7
+bittime deposit otc-status --count 10
+bittime withdrawal otc-status --count 10
 ```
 
 ### WebSocket Streaming
@@ -224,6 +224,20 @@ cargo test: 16 passed
 - Market WebSocket: `wss://ws.bittime.com/market/ws`
 - User WebSocket: `wss://wsapi.bittime.com`
 - API docs: https://bittime-docs.github.io/
+
+## Architecture
+
+```mermaid
+graph TD
+    A[bittime binary] --> B[Clap command dispatcher]
+    B --> C[AppContext]
+    C --> D[BittimeClient]
+    C --> E[Output dispatcher JSON/Table]
+    D --> F[Bittime REST API]
+    D --> G[Bittime WebSocket streams]
+    B --> H[Interactive shell REPL]
+    B --> I[Model Context Protocol server]
+```
 
 ## Security
 

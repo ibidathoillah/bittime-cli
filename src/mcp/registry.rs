@@ -133,11 +133,11 @@ mod tests {
         let registry = ToolRegistry::build();
         assert!(!registry.tools().is_empty());
 
-        // Find bittime_market_ticker
-        let entry = registry.get_tool("bittime_market_ticker");
+        // Find bittime_ticker
+        let entry = registry.get_tool("bittime_ticker");
         assert!(entry.is_some());
         let entry = entry.unwrap();
-        assert_eq!(entry.command_path, vec!["market", "ticker"]);
+        assert_eq!(entry.command_path, vec!["ticker"]);
         assert!(entry.tool.description.is_some());
     }
 }

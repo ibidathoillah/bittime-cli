@@ -5,11 +5,11 @@ use crate::output::CommandOutput;
 use crate::AppContext;
 
 #[derive(Debug, Subcommand)]
-pub enum TradeCommand {
+pub enum OrderCommand {
     /// Place a buy order
     Buy {
         /// Trading pair symbol (e.g., USDTIDR, BTCUSDT)
-        symbol: String,
+        pair: String,
 
         /// Order type: LIMIT or MARKET
         #[arg(short = 't', long, default_value = "LIMIT")]
@@ -20,8 +20,8 @@ pub enum TradeCommand {
         price: Option<String>,
 
         /// Order quantity
-        #[arg(short, long)]
-        quantity: String,
+        #[arg(short = 'v', long)]
+        volume: String,
 
         /// Client order ID (optional)
         #[arg(long)]
@@ -31,7 +31,7 @@ pub enum TradeCommand {
     /// Place a sell order
     Sell {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
 
         /// Order type: LIMIT or MARKET
         #[arg(short = 't', long, default_value = "LIMIT")]
@@ -42,8 +42,8 @@ pub enum TradeCommand {
         price: Option<String>,
 
         /// Order quantity
-        #[arg(short, long)]
-        quantity: String,
+        #[arg(short = 'v', long)]
+        volume: String,
 
         /// Client order ID (optional)
         #[arg(long)]
@@ -53,7 +53,7 @@ pub enum TradeCommand {
     /// Cancel an active order
     Cancel {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
 
         /// Order ID to cancel
         #[arg(long)]
@@ -63,7 +63,7 @@ pub enum TradeCommand {
     /// Query a specific order's status
     Query {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
 
         /// Order ID to query
         #[arg(long)]
@@ -73,17 +73,17 @@ pub enum TradeCommand {
     /// List current open orders
     OpenOrders {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
 
         /// Maximum number of orders (default: 1000)
         #[arg(short, long, default_value = "1000")]
-        limit: u32,
+        count: u32,
     },
 
     /// List all orders (active, canceled, filled)
     AllOrders {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
 
         /// Get orders >= this order ID
         #[arg(long)]
@@ -93,71 +93,71 @@ pub enum TradeCommand {
     /// List pending orders (alias for open orders on Bittime)
     PendingOrders {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
     },
 
     /// Show public order book depth for a symbol
     BookOrders {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
 
         /// Maximum number of orders (default: 1000)
         #[arg(short, long, default_value = "1000")]
-        limit: u32,
+        count: u32,
     },
 
     /// Execute a convert trade
     Convert {
         /// Trading pair symbol
-        symbol: String,
+        pair: String,
     },
 }
 
-impl TradeCommand {
+impl OrderCommand {
     pub async fn execute(&self, ctx: &AppContext) -> Result<CommandOutput, BittimeError> {
         let client = &ctx.client;
 
         let output = match self {
             Self::Buy {
-                symbol,
+                pair,
                 r#type,
                 price,
-                quantity,
+                volume,
                 client_order_id,
             } => {
                 self.place_order(
                     ctx,
-                    symbol,
+                    pair,
                     "BUY",
                     r#type,
                     price.as_deref(),
-                    quantity,
+                    volume,
                     client_order_id.as_deref(),
                 )
                 .await?
             }
 
             Self::Sell {
-                symbol,
+                pair,
                 r#type,
                 price,
-                quantity,
+                volume,
                 client_order_id,
             } => {
                 self.place_order(
                     ctx,
-                    symbol,
+                    pair,
                     "SELL",
                     r#type,
                     price.as_deref(),
-                    quantity,
+                    volume,
                     client_order_id.as_deref(),
                 )
                 .await?
             }
 
-            Self::Cancel { symbol, order_id } => {
-                let sym = symbol.to_uppercase();
+            Self::Cancel { pair, order_id } => {
+                let sym = pair.to_uppercase();
                 let result = client
                     .delete_signed(
                         "/api/v1/order",
@@ -168,8 +168,8 @@ impl TradeCommand {
                     .with_addendum(format!("Order {} cancelled", order_id))
             }
 
-            Self::Query { symbol, order_id } => {
-                let sym = symbol.to_uppercase();
+            Self::Query { pair, order_id } => {
+                let sym = pair.to_uppercase();
                 let result = client
                     .get_signed(
                         "/api/v1/order",
@@ -179,9 +179,9 @@ impl TradeCommand {
                 CommandOutput::new(result, format!("Order {} — {}", order_id, sym))
             }
 
-            Self::OpenOrders { symbol, limit } => {
-                let sym = symbol.to_uppercase();
-                let lim = limit.to_string();
+            Self::OpenOrders { pair, count } => {
+                let sym = pair.to_uppercase();
+                let lim = count.to_string();
                 let result = client
                     .get_signed(
                         "/api/v1/openOrders",
@@ -191,8 +191,8 @@ impl TradeCommand {
                 CommandOutput::new(result, format!("Open Orders — {}", sym))
             }
 
-            Self::AllOrders { symbol, order_id } => {
-                let sym = symbol.to_uppercase();
+            Self::AllOrders { pair, order_id } => {
+                let sym = pair.to_uppercase();
                 let oid = order_id.as_deref().unwrap_or("");
                 let result = client
                     .get_signed(
@@ -203,17 +203,17 @@ impl TradeCommand {
                 CommandOutput::new(result, format!("All Orders — {}", sym))
             }
 
-            Self::PendingOrders { symbol } => {
-                let sym = symbol.to_uppercase();
+            Self::PendingOrders { pair } => {
+                let sym = pair.to_uppercase();
                 let result = client
                     .get_signed("/api/v1/openOrders", &[("symbol", sym.as_str())])
                     .await?;
                 CommandOutput::new(result, format!("Pending Orders — {}", sym))
             }
 
-            Self::BookOrders { symbol, limit } => {
-                let sym = symbol.to_uppercase();
-                let lim = limit.to_string();
+            Self::BookOrders { pair, count } => {
+                let sym = pair.to_uppercase();
+                let lim = count.to_string();
                 let result = client
                     .get_public(
                         "/api/v1/depth",
@@ -223,8 +223,8 @@ impl TradeCommand {
                 CommandOutput::new(result, format!("Order Book — {}", sym))
             }
 
-            Self::Convert { symbol } => {
-                let sym = symbol.to_uppercase();
+            Self::Convert { pair } => {
+                let sym = pair.to_uppercase();
                 let result = client
                     .post_signed("/api/convert/trades", &[("symbol", sym.as_str())])
                     .await?;

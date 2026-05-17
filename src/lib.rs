@@ -21,6 +21,7 @@ pub struct AppContext {
     pub client: BittimeClient,
     pub format: OutputFormat,
     pub verbose: bool,
+    pub yes: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -49,6 +50,10 @@ pub struct Cli {
     #[arg(short, long, global = true)]
     pub verbose: bool,
 
+    /// Skip confirmation prompts for destructive operations
+    #[arg(long, alias = "force", global = true)]
+    pub yes: bool,
+
     /// Override API host URL
     #[arg(long, global = true)]
     pub host: Option<String>,
@@ -59,22 +64,166 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Market data (public, no API key needed)
-    #[command(subcommand)]
-    Market(market::MarketCommand),
+    // === Public Market Commands (originally nested under Market) ===
+    /// Test connectivity to the REST API
+    Ping,
 
-    /// Account information (requires API key)
-    #[command(subcommand)]
-    Account(account::AccountCommand),
+    /// Get the current server time
+    ServerTime,
 
-    /// Trading operations (requires API key)
-    #[command(subcommand)]
-    Trade(trade::TradeCommand),
+    /// Get exchange trading rules and symbol information
+    ExchangeInfo,
 
-    /// Funding: withdrawals, deposits, OTC banking
-    #[command(subcommand)]
-    Funding(funding::FundingCommand),
+    /// Get 24hr ticker price change statistics
+    Ticker {
+        /// Trading pair symbol (e.g., USDTIDR, BTCUSDT)
+        pair: String,
+    },
 
+    /// Get 24hr ticker for all symbols
+    TickerAll,
+
+    /// Get latest price for a symbol
+    Price {
+        /// Trading pair symbol
+        pair: String,
+    },
+
+    /// Get best price/qty on the order book
+    BookTicker {
+        /// Trading pair symbol
+        pair: String,
+    },
+
+    /// Get order book depth
+    Orderbook {
+        /// Trading pair symbol
+        pair: String,
+
+        /// Limit number of price levels (default: 100)
+        #[arg(short, long, default_value = "100")]
+        count: u32,
+    },
+
+    /// Get recent trades
+    Trades {
+        /// Trading pair symbol
+        pair: String,
+
+        /// Number of trades to return (default: 500, max: 1000)
+        #[arg(short, long, default_value = "500")]
+        count: u32,
+    },
+
+    /// Get older historical trades (requires API key)
+    HistoricalTrades {
+        /// Trading pair symbol
+        pair: String,
+
+        /// Number of trades (default: 500)
+        #[arg(short, long, default_value = "500")]
+        count: u32,
+
+        /// Trade id to fetch from
+        #[arg(long, alias = "from-id")]
+        since: Option<u64>,
+    },
+
+    /// Get compressed/aggregate trades
+    AggTrades {
+        /// Trading pair symbol
+        pair: String,
+
+        /// Number of results (default: 500)
+        #[arg(short, long, default_value = "500")]
+        count: u32,
+    },
+
+    // === Account & Balance Commands (originally nested under Account) ===
+    /// Get current account information (balances, commissions)
+    AccountInfo,
+
+    /// Get account balances (non-zero only in table mode)
+    Balance,
+
+    /// Get account information using the V2 version of the API
+    AccountInfoV2,
+
+    /// Get asset details for a specific coin
+    Assets {
+        /// Asset name (e.g., btc, usdt)
+        asset: String,
+    },
+
+    /// Get your trade history for a symbol
+    TradesHistory {
+        /// Trading pair symbol
+        pair: String,
+    },
+
+    /// Get your trade history (v2 API, supports since_id pagination)
+    TradesHistoryV2 {
+        /// Trading pair symbol
+        pair: String,
+
+        /// Start from this trade ID
+        #[arg(long, alias = "since-id", alias = "from-id")]
+        since: Option<String>,
+    },
+
+    /// Get trade history from the legacy endpoint
+    TradesLegacy {
+        /// Trading pair symbol
+        pair: String,
+    },
+
+    // === Trading Operations (originally nested under Trade) ===
+    /// Place and manage orders
+    #[command(subcommand)]
+    Order(trade::OrderCommand),
+
+    // === Funding / Withdrawal Commands (originally nested under Funding) ===
+    /// Withdraw crypto to an external address
+    Withdraw {
+        #[arg(long)]
+        asset: String,
+        #[arg(long)]
+        volume: String,
+        #[arg(long)]
+        address: String,
+        #[arg(long)]
+        network: String,
+        #[arg(long, default_value = "")]
+        address_mark: String,
+        #[arg(long, default_value = "")]
+        addr_type: String,
+        #[arg(long, default_value = "")]
+        tag: String,
+    },
+
+    /// Manage cryptocurrency deposits
+    #[command(subcommand)]
+    Deposit(DepositSubcommand),
+
+    /// Manage cryptocurrency withdrawals
+    #[command(subcommand)]
+    Withdrawal(WithdrawalSubcommand),
+
+    /// OTC fiat withdrawal
+    OtcWithdraw {
+        #[arg(long)]
+        bank_name: String,
+        #[arg(long)]
+        account_name: String,
+        #[arg(long)]
+        bank_number: String,
+        #[arg(long, default_value = "idr")]
+        currency: String,
+        #[arg(long)]
+        volume: String,
+    },
+
+    // === WS, Paper, Auth, Shell, Mcp ===
     /// WebSocket real-time data streams
     #[command(subcommand)]
     Ws(websocket::WebSocketCommand),
@@ -87,14 +236,54 @@ pub enum Command {
     #[command(subcommand)]
     Auth(auth_cmds::AuthCommand),
 
-    /// Interactive shell (REPL)
+    /// Start interactive REPL shell
     Shell,
 
     /// Run as an MCP (Model Context Protocol) server
     Mcp {
-        /// Allow dangerous commands (trade, funding)
+        /// Allow dangerous commands (trade, funding) (ignored for now, present for compatibility)
         #[arg(long)]
         allow_dangerous: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DepositSubcommand {
+    /// Crypto deposit history
+    Status {
+        #[arg(long)]
+        asset: Option<String>,
+    },
+
+    /// OTC deposit history
+    OtcStatus {
+        #[arg(long, default_value = "0")]
+        deposit_order_id: i64,
+        #[arg(short, long, default_value = "10")]
+        count: i64,
+    },
+
+    /// Get OTC virtual account code
+    Va {
+        #[arg(long)]
+        bank_id: i64,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum WithdrawalSubcommand {
+    /// Crypto withdraw history
+    Status {
+        #[arg(long)]
+        asset: Option<String>,
+    },
+
+    /// OTC withdrawal history
+    OtcStatus {
+        #[arg(long, default_value = "0")]
+        withdraw_order_id: i64,
+        #[arg(short, long, default_value = "10")]
+        count: i64,
     },
 }
 
@@ -104,10 +293,91 @@ pub async fn dispatch_non_shell(
     command: Command,
 ) -> Result<CommandOutput, BittimeError> {
     match command {
-        Command::Market(cmd) => cmd.execute(ctx).await,
-        Command::Account(cmd) => cmd.execute(ctx).await,
-        Command::Trade(cmd) => cmd.execute(ctx).await,
-        Command::Funding(cmd) => cmd.execute(ctx).await,
+        // === Public Market Commands ===
+        Command::Ping => market::MarketCommand::Ping.execute(ctx).await,
+        Command::ServerTime => market::MarketCommand::ServerTime.execute(ctx).await,
+        Command::ExchangeInfo => market::MarketCommand::ExchangeInfo.execute(ctx).await,
+        Command::Ticker { pair } => market::MarketCommand::Ticker { symbol: pair }.execute(ctx).await,
+        Command::TickerAll => market::MarketCommand::TickerAll.execute(ctx).await,
+        Command::Price { pair } => market::MarketCommand::Price { symbol: pair }.execute(ctx).await,
+        Command::BookTicker { pair } => market::MarketCommand::BookTicker { symbol: pair }.execute(ctx).await,
+        Command::Orderbook { pair, count } => market::MarketCommand::Orderbook { symbol: pair, limit: count }.execute(ctx).await,
+        Command::Trades { pair, count } => market::MarketCommand::Trades { symbol: pair, limit: count }.execute(ctx).await,
+        Command::HistoricalTrades { pair, count, since } => {
+            market::MarketCommand::HistoricalTrades {
+                symbol: pair,
+                limit: count,
+                from_id: since,
+            }
+            .execute(ctx)
+            .await
+        }
+        Command::AggTrades { pair, count } => market::MarketCommand::AggTrades { symbol: pair, limit: count }.execute(ctx).await,
+
+        // === Account & Balance Commands ===
+        Command::AccountInfo => account::AccountCommand::Info.execute(ctx).await,
+        Command::Balance => account::AccountCommand::Balance.execute(ctx).await,
+        Command::AccountInfoV2 => account::AccountCommand::InfoV2.execute(ctx).await,
+        Command::Assets { asset } => account::AccountCommand::Assets { coin: asset }.execute(ctx).await,
+        Command::TradesHistory { pair } => account::AccountCommand::Trades { symbol: pair }.execute(ctx).await,
+        Command::TradesHistoryV2 { pair, since } => account::AccountCommand::TradesV2 { symbol: pair, from_id: since }.execute(ctx).await,
+        Command::TradesLegacy { pair } => account::AccountCommand::TradeHistory { symbol: pair }.execute(ctx).await,
+
+        // === Trading Operations ===
+        Command::Order(cmd) => cmd.execute(ctx).await,
+
+        // === Funding / Withdrawal Operations ===
+        Command::Withdraw { asset, volume, address, network, address_mark, addr_type, tag } => {
+            funding::FundingCommand::Withdraw {
+                coin: asset,
+                amount: volume,
+                address,
+                chain: network,
+                address_mark,
+                addr_type,
+                tag,
+            }
+            .execute(ctx)
+            .await
+        }
+        Command::OtcWithdraw { bank_name, account_name, bank_number, currency, volume } => {
+            funding::FundingCommand::OtcWithdraw {
+                bank_name,
+                account_name,
+                bank_number,
+                currency,
+                amount: volume,
+            }
+            .execute(ctx)
+            .await
+        }
+        Command::Deposit(sub) => {
+            let funding_cmd = match sub {
+                DepositSubcommand::Status { asset } => funding::FundingCommand::DepositHistory { coin: asset },
+                DepositSubcommand::OtcStatus { deposit_order_id, count } => {
+                    funding::FundingCommand::OtcDepositHistory {
+                        deposit_order_id,
+                        limit: count,
+                    }
+                }
+                DepositSubcommand::Va { bank_id } => funding::FundingCommand::OtcVaCode { bank_id },
+            };
+            funding_cmd.execute(ctx).await
+        }
+        Command::Withdrawal(sub) => {
+            let funding_cmd = match sub {
+                WithdrawalSubcommand::Status { asset } => funding::FundingCommand::WithdrawHistory { coin: asset },
+                WithdrawalSubcommand::OtcStatus { withdraw_order_id, count } => {
+                    funding::FundingCommand::OtcWithdrawHistory {
+                        withdraw_order_id,
+                        limit: count,
+                    }
+                }
+            };
+            funding_cmd.execute(ctx).await
+        }
+
+        // === WS, Paper, Auth, Shell, Mcp ===
         Command::Ws(cmd) => cmd.execute(ctx).await,
         Command::Paper(cmd) => cmd.execute(ctx).await,
         Command::Auth(cmd) => cmd.execute(ctx).await,
