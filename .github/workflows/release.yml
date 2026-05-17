@@ -70,6 +70,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: bittime-*
           merge-multiple: true
 
       - name: Create release
