@@ -1,4 +1,5 @@
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
@@ -134,15 +135,18 @@ impl Config {
             ))
         })?;
 
-        // Set 0600 permissions (owner read/write only)
-        let perms = fs::Permissions::from_mode(0o600);
-        fs::set_permissions(&path, perms).map_err(|e| {
-            BittimeError::Config(format!(
-                "Failed to set permissions on {}: {}",
-                path.display(),
-                e
-            ))
-        })?;
+        #[cfg(unix)]
+        {
+            // Set 0600 permissions (owner read/write only)
+            let perms = fs::Permissions::from_mode(0o600);
+            fs::set_permissions(&path, perms).map_err(|e| {
+                BittimeError::Config(format!(
+                    "Failed to set permissions on {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?;
+        }
 
         Ok(())
     }
