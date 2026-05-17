@@ -1,8 +1,8 @@
-## 🚀 Welcome to bittime-cli CLI v0.1.5
+## 🚀 Welcome to bittime-cli CLI v0.1.6
 
 The unofficial, fast, and feature-rich command-line interface for **Bittime**.
 
-### 🆕 What's New in v0.1.5
+### 🆕 What's New in v0.1.6
 
 - **🔄 Standardized Workflow**: Aligned with the Indodax-CLI development and release lifecycle.
 - **🛡️ Security**: Improved credential management and SSL/TLS handling.
