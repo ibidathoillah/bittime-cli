@@ -108,7 +108,7 @@ impl MarketCommand {
             }
 
             Self::Ticker { symbol } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let result = client
                     .get_public("/api/v1/ticker/24hr", &[("symbol", &sym)])
                     .await?;
@@ -121,7 +121,7 @@ impl MarketCommand {
             }
 
             Self::Price { symbol } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let result = client
                     .get_public("/api/v1/ticker/price", &[("symbol", &sym)])
                     .await?;
@@ -129,7 +129,7 @@ impl MarketCommand {
             }
 
             Self::BookTicker { symbol } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let result = client
                     .get_public("/api/v1/ticker/bookTicker", &[("symbol", &sym)])
                     .await?;
@@ -137,7 +137,7 @@ impl MarketCommand {
             }
 
             Self::Orderbook { symbol, limit } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let lim = limit.to_string();
                 let result = client
                     .get_public("/api/v1/depth", &[("symbol", &sym), ("limit", &lim)])
@@ -146,7 +146,7 @@ impl MarketCommand {
             }
 
             Self::Trades { symbol, limit } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let lim = limit.to_string();
                 let result = client
                     .get_public("/api/v1/trades", &[("symbol", &sym), ("limit", &lim)])
@@ -159,7 +159,7 @@ impl MarketCommand {
                 limit,
                 from_id,
             } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let lim = limit.to_string();
                 let mut params: Vec<(&str, String)> = vec![("symbol", sym.clone()), ("limit", lim)];
                 if let Some(id) = from_id {
@@ -174,7 +174,7 @@ impl MarketCommand {
             }
 
             Self::AggTrades { symbol, limit } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let lim = limit.to_string();
                 let result = client
                     .get_public("/api/v1/aggTrades", &[("symbol", &sym), ("limit", &lim)])

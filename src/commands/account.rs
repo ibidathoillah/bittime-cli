@@ -78,7 +78,7 @@ impl AccountCommand {
             }
 
             Self::Trades { symbol } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let result = client
                     .get_signed("/api/v1/myTrades", &[("symbol", &sym)])
                     .await?;
@@ -86,7 +86,7 @@ impl AccountCommand {
             }
 
             Self::TradesV2 { symbol, from_id } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let fid = from_id.as_deref().unwrap_or("");
                 let result = client
                     .get_signed("/api/v2/myTrades", &[("symbol", &sym), ("fromId", fid)])
@@ -95,7 +95,7 @@ impl AccountCommand {
             }
 
             Self::TradeHistory { symbol } => {
-                let sym = symbol.to_uppercase();
+                let sym = crate::normalize_pair(symbol);
                 let result = client
                     .get_signed("/v1/tradeHistory", &[("symbol", &sym)])
                     .await?;
