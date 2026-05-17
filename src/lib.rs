@@ -156,6 +156,17 @@ pub enum Command {
     },
 
     /// Get compressed/aggregate trades
+    /// Get kline/candlestick bars
+    Klines {
+        /// Trading pair symbol
+        pair: String,
+        /// Interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
+        #[arg(short, long, default_value = "1h")]
+        interval: String,
+        /// Limit number of bars (default: 500, max: 1000)
+        #[arg(short, long, default_value = "500")]
+        count: u32,
+    },
     AggTrades {
         /// Trading pair symbol
         pair: String,
@@ -370,7 +381,38 @@ pub async fn dispatch_non_shell(
             .execute(ctx)
             .await
         }
+    /// Get kline/candlestick bars
+    Klines {
+        /// Trading pair symbol
+        pair: String,
+        /// Interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
+        #[arg(short, long, default_value = "1h")]
+        interval: String,
+        /// Limit number of bars (default: 500, max: 1000)
+        #[arg(short, long, default_value = "500")]
+        count: u32,
+    },
+        Command::Klines { pair, interval, count } => {
+            market::MarketCommand::Klines {
+                symbol: pair,
+                interval,
+                limit: count,
+            }
+            .execute(ctx)
+            .await
+        }
         Command::AggTrades { pair, count } => {
+    /// Get kline/candlestick bars
+    Klines {
+        /// Trading pair symbol
+        pair: String,
+        /// Interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
+        #[arg(short, long, default_value = "1h")]
+        interval: String,
+        /// Limit number of bars (default: 500, max: 1000)
+        #[arg(short, long, default_value = "500")]
+        count: u32,
+    },
             market::MarketCommand::AggTrades {
                 symbol: normalize_pair(&pair),
                 limit: count,
