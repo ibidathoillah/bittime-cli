@@ -1,6 +1,6 @@
 {
   "name": "bittime-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Unofficial command-line interface for the Bittime cryptocurrency exchange",
   "bin": {
     "bittime": "./bin/bittime.js"
