@@ -1,0 +1,15 @@
+target/
+scratch/
+src/
+docs/
+.github/
+.agents/
+.codex/
+Cargo.toml
+Cargo.lock
+TODO.md
+Dockerfile
+scripts/e2e_test.sh
+*.log
+bin/bittime
+bin/bittime.exe

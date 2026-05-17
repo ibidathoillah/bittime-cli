@@ -1,0 +1,32 @@
+{
+  "name": "bittime-cli",
+  "version": "0.1.0",
+  "description": "Unofficial command-line interface for the Bittime cryptocurrency exchange",
+  "bin": {
+    "bittime": "./bin/bittime.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ibidathoillah/bittime-cli.git"
+  },
+  "keywords": [
+    "bittime",
+    "crypto",
+    "cli",
+    "trading",
+    "websocket",
+    "mcp"
+  ],
+  "author": "Ibida Thoillah",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ibidathoillah/bittime-cli/issues"
+  },
+  "homepage": "https://github.com/ibidathoillah/bittime-cli#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

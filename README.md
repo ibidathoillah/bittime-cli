@@ -28,6 +28,25 @@ cd bittime-cli
 cargo install --path .
 ```
 
+Install from crates.io:
+
+```bash
+cargo install bittime-cli
+```
+
+Install from npm:
+
+```bash
+npm install -g bittime-cli
+```
+
+Run with Docker:
+
+```bash
+docker run --rm ibidathoillah/bittime-cli --help
+docker run --rm -e BITTIME_API_KEY -e BITTIME_API_SECRET ibidathoillah/bittime-cli account balance
+```
+
 Run from the checkout:
 
 ```bash
