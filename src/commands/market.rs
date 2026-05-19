@@ -184,25 +184,21 @@ impl MarketCommand {
                 CommandOutput::new(result, format!("Historical Trades — {}", sym))
             }
 
-    /// Get kline/candlestick bars
-    Klines {
-        /// Trading pair symbol
-        symbol: String,
-        /// Interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
-        #[arg(short, long, default_value = "1h")]
-        interval: String,
-        /// Limit number of bars (default: 500, max: 1000)
-        #[arg(short, long, default_value = "500")]
-        limit: u32,
-    },
-            Self::Klines { symbol, interval, limit } => {
+            Self::Klines {
+                symbol,
+                interval,
+                limit,
+            } => {
                 let sym = crate::normalize_pair(symbol);
                 let lim = limit.to_string();
                 let result = client
-                    .get_public("/api/v1/klines", &[("symbol", &sym), ("interval", interval), ("limit", &lim)])
+                    .get_public(
+                        "/api/v1/klines",
+                        &[("symbol", &sym), ("interval", interval), ("limit", &lim)],
+                    )
                     .await?;
                 CommandOutput::new(result, format!("Klines — {}", sym))
-            },
+            }
             Self::AggTrades { symbol, limit } => {
                 let sym = crate::normalize_pair(symbol);
                 let lim = limit.to_string();
