@@ -2,7 +2,7 @@ use clap::Subcommand;
 
 use crate::errors::BittimeError;
 use crate::output::CommandOutput;
-use crate::{normalize_pair, AppContext};
+use crate::AppContext;
 
 #[derive(Debug, Subcommand)]
 pub enum OrderCommand {
@@ -157,7 +157,7 @@ impl OrderCommand {
             }
 
             Self::Cancel { pair, order_id } => {
-                let sym = crate::normalize_pair(pair);
+                let sym = normalize_pair(pair);
                 let result = client
                     .delete_signed(
                         "/api/v1/order",
@@ -169,7 +169,7 @@ impl OrderCommand {
             }
 
             Self::Query { pair, order_id } => {
-                let sym = crate::normalize_pair(pair);
+                let sym = normalize_pair(pair);
                 let result = client
                     .get_signed(
                         "/api/v1/order",
@@ -180,7 +180,7 @@ impl OrderCommand {
             }
 
             Self::OpenOrders { pair, count } => {
-                let sym = crate::normalize_pair(pair);
+                let sym = normalize_pair(pair);
                 let lim = count.to_string();
                 let result = client
                     .get_signed(
@@ -192,7 +192,7 @@ impl OrderCommand {
             }
 
             Self::AllOrders { pair, order_id } => {
-                let sym = crate::normalize_pair(pair);
+                let sym = normalize_pair(pair);
                 let oid = order_id.as_deref().unwrap_or("");
                 let result = client
                     .get_signed(
@@ -204,7 +204,7 @@ impl OrderCommand {
             }
 
             Self::PendingOrders { pair } => {
-                let sym = crate::normalize_pair(pair);
+                let sym = normalize_pair(pair);
                 let result = client
                     .get_signed("/api/v1/openOrders", &[("symbol", sym.as_str())])
                     .await?;
@@ -212,7 +212,7 @@ impl OrderCommand {
             }
 
             Self::BookOrders { pair, count } => {
-                let sym = crate::normalize_pair(pair);
+                let sym = normalize_pair(pair);
                 let lim = count.to_string();
                 let result = client
                     .get_public(
@@ -224,7 +224,7 @@ impl OrderCommand {
             }
 
             Self::Convert { pair } => {
-                let sym = crate::normalize_pair(pair);
+                let sym = normalize_pair(pair);
                 let result = client
                     .post_signed("/api/convert/trades", &[("symbol", sym.as_str())])
                     .await?;
@@ -245,7 +245,7 @@ impl OrderCommand {
         quantity: &str,
         client_order_id: Option<&str>,
     ) -> Result<CommandOutput, BittimeError> {
-        let sym = crate::normalize_pair(symbol);
+        let sym = normalize_pair(symbol);
         let otype = order_type.to_uppercase();
         let coid = client_order_id
             .map(|s| s.to_string())
